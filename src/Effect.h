@@ -406,8 +406,7 @@ public:
     };
 
 public:
-    Parameter() : mType(eType::NONE), mCount(0), mSize(0), mAnnotationCount(0), mNameHash(0), mSemanticHash(0), mValue{.AsInt = 0}, mAnnotations(nullptr),
-                  mVertexRegister(-1), mPixelRegister(-1)
+    Parameter() : mType(eType::NONE), mCount(0), mSize(0), mAnnotationCount(0), mNameHash(0), mSemanticHash(0), mValue{.AsInt = 0}, mAnnotations(nullptr)
     {}
 
     ~Parameter()
@@ -482,8 +481,6 @@ private:
             void* AsVoid;
         };
     } mValue;
-    uint16_t mVertexRegister;
-    uint16_t mPixelRegister;
 };
 
 
