@@ -1953,9 +1953,10 @@ bool HLSLParser::ParseAnnotations(HLSLAnnotation*& annotations)
 
             if(Accept('>'))
                 break;
-
             if(!Expect(';'))
                 return false;
+            if(Accept('>'))
+                break;
             currAnnotation = currAnnotation->nextAnnotation = m_tree->AddNode<HLSLAnnotation>(fileName, line);
         }
     }
