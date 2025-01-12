@@ -3147,6 +3147,15 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
         {
             if (!AcceptInt(stateAssignment->iValue))
             {
+                HLSLExpression* expr; bool needsEndParen;
+                if(ParseTerminalExpression(expr, needsEndParen))
+                {
+                    if(m_tree->GetExpressionValue(expr, &stateAssignment->fValue))
+                    {
+                        return true;
+                    }
+                }
+
                 m_tokenizer.Error("Syntax error: expected integer near '%s'", m_tokenizer.GetIdentifier());
                 stateAssignment->iValue = 0;
                 return false;
@@ -3156,6 +3165,15 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
         {
             if (!AcceptFloat(stateAssignment->fValue))
             {
+                HLSLExpression* expr; bool needsEndParen;
+                if(ParseTerminalExpression(expr, needsEndParen))
+                {
+                    if(m_tree->GetExpressionValue(expr, &stateAssignment->fValue))
+                    {
+                        return true;
+                    }
+                }
+
                 m_tokenizer.Error("Syntax error: expected float near '%s'", m_tokenizer.GetIdentifier());
                 stateAssignment->iValue = 0;
                 return false;

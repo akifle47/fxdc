@@ -17,6 +17,8 @@
 #include "HLSLTokenizer.h"
 #include "HLSLTree.h"
 
+class Effect;
+
 namespace M4
 {
 
@@ -24,7 +26,7 @@ struct EffectState;
 
 class HLSLParser
 {
-
+    friend class Effect;
 public:
 
     HLSLParser(Allocator* allocator, const char* fileName, const char* buffer, size_t length);
@@ -111,6 +113,8 @@ private:
 
     bool GetIsFunction(const char* name) const;
     
+    bool GetIsFunctionAShader(const struct Variable& var);
+
     /** Finds the overloaded function that matches the specified call. */
     const HLSLFunction* MatchFunctionCall(const HLSLFunctionCall* functionCall, const char* name);
 
