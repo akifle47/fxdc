@@ -147,6 +147,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="deps\hlslparser\src\Engine.cpp" />
+    <ClCompile Include="deps\hlslparser\src\HLSLParser.cpp" />
+    <ClCompile Include="deps\hlslparser\src\HLSLTokenizer.cpp" />
+    <ClCompile Include="deps\hlslparser\src\HLSLTree.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Effect.cpp" />
     <ClCompile Include="src\FileStream.cpp" />
@@ -162,6 +166,10 @@
     <ClInclude Include="deps\dx9\d3dx9shape.h" />
     <ClInclude Include="deps\dx9\d3dx9tex.h" />
     <ClInclude Include="deps\dx9\d3dx9xof.h" />
+    <ClInclude Include="deps\hlslparser\src\Engine.h" />
+    <ClInclude Include="deps\hlslparser\src\HLSLParser.h" />
+    <ClInclude Include="deps\hlslparser\src\HLSLTokenizer.h" />
+    <ClInclude Include="deps\hlslparser\src\HLSLTree.h" />
     <ClInclude Include="src\rage\Array.h" />
     <ClInclude Include="src\Effect.h" />
     <ClInclude Include="src\rage\math\Matrix.h" />

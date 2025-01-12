@@ -14,8 +14,7 @@
 #include "HLSLTree.h"
 
 #include <algorithm>
-#include <ctype.h>
-#include <string.h>
+#include <cctype>
 
 namespace M4
 {
@@ -253,6 +252,7 @@ struct EffectState
 };
 
 static const EffectState samplerStates[] = {
+    {"Texture", 0, NULL},
     {"AddressU", 1, textureAddressingValues},
     {"AddressV", 2, textureAddressingValues},
     {"AddressW", 3, textureAddressingValues},
@@ -263,7 +263,7 @@ static const EffectState samplerStates[] = {
     {"MipMapLodBias", 8, floatValues},
     {"MaxMipLevel", 9, integerValues},
     {"MaxAnisotropy", 10, integerValues},
-    {"sRGBTexture", 11, booleanValues},    
+    {"SRGBTexture", 11, booleanValues},    
 };
 
 static const EffectState effectStates[] = {
@@ -298,12 +298,18 @@ static const EffectState effectStates[] = {
     {"CCW_StencilPass", 188, stencilOpValues},
     {"CCW_StencilFunc", 189, cmpValues},
     {"ColorWriteEnable", 168, colorMaskValues},
+    {"ColorWriteEnable1", 190, colorMaskValues},
+    {"ColorWriteEnable2", 191, colorMaskValues},
+    {"ColorWriteEnable3", 192, colorMaskValues},
     {"FillMode", 8, fillModeValues},
     {"MultisampleAlias", 161, booleanValues},
     {"MultisampleMask", 162, integerValues},
     {"ScissorTestEnable", 174, booleanValues},
     {"SlopeScaleDepthBias", 175, floatValues},
-    {"DepthBias", 195, floatValues}
+    {"TwoSideStencilMode", 185, booleanValues},
+    {"BlendFactor", 193, integerValues},
+    {"DepthBias", 195, floatValues},
+    {"SeparateAlphaBlendEnable", 206, booleanValues}
 };
 
 
@@ -1169,7 +1175,8 @@ HLSLParser::HLSLParser(Allocator* allocator, const char* fileName, const char* b
     m_tokenizer(fileName, buffer, length),
     m_userTypes(allocator),
     m_variables(allocator),
-    m_functions(allocator)
+    m_functions(allocator),
+    m_techniques(allocator)
 {
     m_numGlobals = 0;
     m_tree = NULL;
@@ -1274,6 +1281,17 @@ bool HLSLParser::AcceptInt(int& value)
     if (m_tokenizer.GetToken() == HLSLToken_IntLiteral)
     {
         value = m_tokenizer.GetInt();
+        m_tokenizer.Next();
+        return true;
+    }
+    return false;
+}
+
+bool HLSLParser::AcceptString(const char*& value)
+{
+    if(m_tokenizer.GetToken() == HLSLToken_StringLiteral)
+    {
+        value = m_tree->AddString(m_tokenizer.GetString());
         m_tokenizer.Next();
         return true;
     }
@@ -1510,6 +1528,11 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
             }
 
             DeclareVariable( globalName, declaration->type );
+
+            if(!ParseAnnotations(declaration->annotations))
+            {
+                return false;
+            }
 
             if (!ParseDeclarationAssignment(declaration))
             {
@@ -1876,6 +1899,70 @@ bool HLSLParser::ParseDeclaration(HLSLDeclaration*& declaration)
     return true;
 }
 
+bool HLSLParser::ParseAnnotations(HLSLAnnotation*& annotations)
+{
+    const char* fileName = GetFileName();
+    int         line = GetLineNumber();
+
+    if(Accept('<'))
+    {
+        annotations = m_tree->AddNode<HLSLAnnotation>(fileName, line);
+        HLSLAnnotation* currAnnotation = annotations;
+        
+        while(true)
+        {
+            if(Accept(HLSLToken_Int))
+            {
+                if(!ExpectIdentifier(currAnnotation->name) || !Expect('='))
+                    return false;
+
+                if(!AcceptInt(currAnnotation->iValue))
+                {
+                    m_tokenizer.Error("Syntax error: expected integer near '%s'", m_tokenizer.GetIdentifier());
+                    currAnnotation->iValue = 0;
+                    return false;
+                }
+                currAnnotation->type = HLSLAnnotationType_Int;
+            }
+            else if(Accept(HLSLToken_Float))
+            {
+                if(!ExpectIdentifier(currAnnotation->name) || !Expect('='))
+                    return false;
+
+                if(!AcceptFloat(currAnnotation->fValue))
+                {
+                    m_tokenizer.Error("Syntax error: expected float near '%s'", m_tokenizer.GetIdentifier());
+                    currAnnotation->iValue = 0;
+                    return false;
+                }
+                currAnnotation->type = HLSLAnnotationType_Float;
+            }
+            else if(Accept(HLSLToken_String))
+            {
+                if(!ExpectIdentifier(currAnnotation->name) || !Expect('='))
+                    return false;
+
+                if(!AcceptString(currAnnotation->sValue))
+                {
+                    m_tokenizer.Error("Syntax error: expected string near '%s'", m_tokenizer.GetIdentifier());
+                    currAnnotation->iValue = 0;
+                    return false;
+                }
+                currAnnotation->type = HLSLAnnotationType_String;
+            }
+
+            if(Accept('>'))
+                break;
+
+            if(!Expect(';'))
+                return false;
+            currAnnotation = currAnnotation->nextAnnotation = m_tree->AddNode<HLSLAnnotation>(fileName, line);
+        }
+    }
+
+    return true;
+}
+
 bool HLSLParser::ParseDeclarationAssignment(HLSLDeclaration* declaration)
 {
     if (Accept('='))
@@ -1893,6 +1980,23 @@ bool HLSLParser::ParseDeclarationAssignment(HLSLDeclaration* declaration)
         {
             if (!ParseSamplerState(declaration->assignment))
             {
+                return false;
+            }
+        }
+        else if(declaration->type.baseType == HLSLBaseType_VertexShader || declaration->type.baseType == HLSLBaseType_PixelShader)
+        {
+            const char* fileName = GetFileName();
+            int         line = GetLineNumber();
+
+            if(Accept(HLSLToken_Asm))
+            {
+                HLSLShaderObjectExpression* shaderObj = m_tree->AddNode<HLSLShaderObjectExpression>(fileName, line);
+                shaderObj->source = m_tree->AddString(m_tokenizer.GetString());
+                declaration->assignment = shaderObj;
+            }
+            else if(!Accept(HLSLToken_Null))
+            {
+                m_tokenizer.Error("Syntax error: expected a shader or NULL.");
                 return false;
             }
         }
@@ -2709,7 +2813,7 @@ bool HLSLParser::ParseTechnique(HLSLStatement*& statement)
     HLSLTechnique* technique = m_tree->AddNode<HLSLTechnique>(GetFileName(), GetLineNumber());
     technique->name = techniqueName;
 
-    //m_techniques.PushBack(technique);
+    m_techniques.PushBack(technique);
 
     HLSLPass* lastPass = NULL;
 
@@ -2895,7 +2999,8 @@ static const EffectStateValue* GetStateValue(const char* name, const EffectState
 
 bool HLSLParser::ParseStateName(bool isSamplerState, bool isPipelineState, const char*& name, const EffectState *& state)
 {
-    if (m_tokenizer.GetToken() != HLSLToken_Identifier)
+    if (m_tokenizer.GetToken() != HLSLToken_Identifier && 
+        m_tokenizer.GetToken() != HLSLToken_VertexShader && m_tokenizer.GetToken() != HLSLToken_PixelShader)
     {
         char near[HLSLTokenizer::s_maxIdentifier];
         m_tokenizer.GetTokenName(near);
@@ -2951,6 +3056,16 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
 
     if (!expectsExpression && !expectsInteger && !expectsFloat && !expectsBoolean) 
     {
+        //sampler state texture
+        if ((char)m_tokenizer.GetToken() == '<')
+        {
+            m_tokenizer.Next();
+            if (AcceptIdentifier(stateAssignment->sValue) && Expect('>'))
+            {
+                return true;
+            }
+        }
+
         if (m_tokenizer.GetToken() != HLSLToken_Identifier)
         {
             char near[HLSLTokenizer::s_maxIdentifier];
@@ -2963,19 +3078,68 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
 
     if (state->values == NULL)
     {
-        if (strcmp(m_tokenizer.GetIdentifier(), "compile") != 0)
-        {
-            m_tokenizer.Error("Syntax error: unexpected identifier '%s' expected compile statement", m_tokenizer.GetIdentifier());
-            stateAssignment->iValue = 0;
-            return false;
-        }
-
-        // @@ Parse profile name, function name, argument expressions.
-
-        // Skip the rest of the compile statement.
-        while(m_tokenizer.GetToken() != ';')
+        //TODO: argument expressions
+        if (strcmp(m_tokenizer.GetIdentifier(), "compile") == 0)
         {
             m_tokenizer.Next();
+            if(m_tokenizer.GetToken() != HLSLToken_Identifier)
+            {
+                char near[HLSLTokenizer::s_maxIdentifier];
+                m_tokenizer.GetTokenName(near);
+                m_tokenizer.Error("Syntax error: expected shader profile near '%s'", near);
+                stateAssignment->iValue = 0;
+                return false;
+            }
+            //ignore it and assume it's "_s_3_0" for now
+            const char* profile = m_tokenizer.GetIdentifier();
+            m_tokenizer.Next();
+
+            if(m_tokenizer.GetToken() != HLSLToken_Identifier)
+            {
+                char near[HLSLTokenizer::s_maxIdentifier];
+                m_tokenizer.GetTokenName(near);
+                m_tokenizer.Error("Syntax error: expected shader function near '%s'", near);
+                stateAssignment->iValue = 0;
+                return false;
+            }
+
+            const char* identifier = m_tokenizer.GetIdentifier();
+            if(!FindFunction(identifier))
+            {
+                m_tokenizer.Error("undeclared function '%s'", identifier);
+                return false;
+            }
+            m_tokenizer.Next();
+
+            if(Expect('(') && Expect(')'))
+                stateAssignment->sValue = identifier;
+            else
+                return false;
+        }
+        else
+        {
+            if(m_tokenizer.GetToken() == HLSLToken_Identifier)
+            {
+                const char* identifier = m_tokenizer.GetIdentifier();
+                bool isGlobal;
+                if(!FindVariable(identifier, isGlobal))
+                {
+                    m_tokenizer.Error("undeclared identifier '%s'", identifier);
+                    return false;
+                }
+
+                stateAssignment->sValue = identifier;
+                m_tokenizer.Next();
+            }
+            else if(m_tokenizer.GetToken() != HLSLToken_Null)
+            {
+
+                char near[HLSLTokenizer::s_maxIdentifier];
+                m_tokenizer.GetTokenName(near);
+                m_tokenizer.Error("Syntax error: expected shader object or NULL near '%s'", near);
+                stateAssignment->iValue = 0;
+                return false;
+            }
         }
     }
     else {
@@ -3231,6 +3395,11 @@ bool HLSLParser::AcceptTypeModifier(int& flags)
         flags |= HLSLTypeFlag_Static;
         return true;
     }
+    else if (Accept(HLSLToken_Shared))
+    {
+        flags |= HLSLTypeFlag_Shared;
+        return true;
+    }
     else if (Accept(HLSLToken_Uniform))
     {
         //flags |= HLSLTypeFlag_Uniform;      // @@ Ignored.
@@ -3392,6 +3561,9 @@ bool HLSLParser::AcceptType(bool allowVoid, HLSLType& type/*, bool acceptFlags*/
     case HLSLToken_Uint4:
         type.baseType = HLSLBaseType_Uint4;
         break;
+    case HLSLToken_String:
+        type.baseType = HLSLBaseType_String;
+        break;
     case HLSLToken_Texture:
         type.baseType = HLSLBaseType_Texture;
         break;
@@ -3416,7 +3588,14 @@ bool HLSLParser::AcceptType(bool allowVoid, HLSLType& type/*, bool acceptFlags*/
     case HLSLToken_Sampler2DArray:
         type.baseType = HLSLBaseType_Sampler2DArray;
         break;
+    case HLSLToken_VertexShader:
+        type.baseType = HLSLBaseType_VertexShader;
+        break;
+    case HLSLToken_PixelShader:
+        type.baseType = HLSLBaseType_PixelShader;
+        break;
     }
+
     if (type.baseType != HLSLBaseType_Void)
     {
         m_tokenizer.Next();
@@ -3577,7 +3756,7 @@ const HLSLType* HLSLParser::FindVariable(const char* name, bool& global) const
 {
     for (int i = m_variables.GetSize() - 1; i >= 0; --i)
     {
-        if (m_variables[i].name == name)
+        if (strcmp(m_variables[i].name, name) == 0)
         {
             global = (i < m_numGlobals);
             return &m_variables[i].type;
@@ -3590,7 +3769,7 @@ const HLSLFunction* HLSLParser::FindFunction(const char* name) const
 {
     for (int i = 0; i < m_functions.GetSize(); ++i)
     {
-        if (m_functions[i]->name == name)
+        if (strcmp(m_functions[i]->name, name) == 0)
         {
             return m_functions[i];
         }

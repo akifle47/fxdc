@@ -46,6 +46,7 @@ static const char* _reservedWords[] =
         "uint2",
         "uint3",
         "uint4",
+        "string",
         "texture",
         "sampler",
         "sampler2D",
@@ -79,6 +80,11 @@ static const char* _reservedWords[] =
         "sampler_state",
         "technique",
         "pass",
+        "shared",
+        "VertexShader",
+        "PixelShader",
+        "asm",
+        "NULL",
     };
 
 static bool GetIsSymbol(char c)
@@ -113,6 +119,10 @@ static bool GetIsNumberSeparator(char c)
 
 HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t length)
 {
+    m_sValueLength = 10000;
+    m_sValue = new char[m_sValueLength];
+    memset(m_sValue, 0, m_sValueLength);
+
     m_buffer            = buffer;
     m_bufferEnd         = buffer + length;
     m_fileName          = fileName;
@@ -120,6 +130,13 @@ HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t le
     m_tokenLineNumber   = 1;
     m_error             = false;
     Next();
+}
+
+HLSLTokenizer::~HLSLTokenizer()
+{
+    delete[] m_sValue;
+    m_sValue = nullptr;
+    m_sValueLength = 0;
 }
 
 void HLSLTokenizer::Next()
@@ -223,8 +240,32 @@ void HLSLTokenizer::Next()
     
     if (GetIsSymbol(m_buffer[0]))
     {
-        m_token = static_cast<unsigned char>(m_buffer[0]);
+        m_token = static_cast<HLSLToken>(m_buffer[0]);
         ++m_buffer;
+        return;
+    }
+
+    if(m_buffer[0] == '"')
+    {
+        m_buffer++;
+        while(m_buffer < m_bufferEnd && m_buffer[0] != 0 && m_buffer[0] != '"')
+        {
+            ++m_buffer;
+        }
+
+        m_token = HLSLToken_StringLiteral;
+
+        size_t length = m_buffer - (start + 1);
+        if(m_sValueLength < length)
+        {
+            delete[] m_sValue;
+            m_sValueLength = length;
+            m_sValue = new char[m_sValueLength];
+        }
+        memcpy(m_sValue, (start + 1), length);
+        m_sValue[length] = 0;
+        m_buffer++;
+
         return;
     }
 
@@ -238,12 +279,21 @@ void HLSLTokenizer::Next()
     memcpy(m_identifier, start, length);
     m_identifier[length] = 0;
     
+    if(length > s_maxIdentifier)
+    {
+        Error("Identifier name is too long! longest allowed identifier length is %d.", s_maxIdentifier);
+        return;
+    }
+
     const int numReservedWords = sizeof(_reservedWords) / sizeof(const char*);
     for (int i = 0; i < numReservedWords; ++i)
     {
         if (strcmp(_reservedWords[i], m_identifier) == 0)
         {
-            m_token = 256 + i;
+            m_token = (HLSLToken)(256 + i);
+            if(m_token == HLSLToken_Asm)
+                ScanAssemblyBlock();
+
             return;
         }
     }
@@ -382,7 +432,7 @@ bool HLSLTokenizer::ScanNumber()
 	if( fEnd > iEnd && GetIsNumberSeparator( fEnd[ 0 ] ) )
 	{
 		m_buffer = fEnd;
-		m_token = fEnd[ 0 ] == 'f' ? HLSLToken_FloatLiteral : HLSLToken_HalfLiteral;
+		m_token = fEnd[ 0 ] == 'h' ? HLSLToken_HalfLiteral : HLSLToken_FloatLiteral;
         m_fValue = static_cast<float>(fValue);
         return true;
     }
@@ -505,6 +555,36 @@ bool HLSLTokenizer::ScanLineDirective()
 
 }
 
+void HLSLTokenizer::ScanAssemblyBlock()
+{
+    Next();
+    if(m_token != '{')
+    {
+        Error("Expected '{'");
+        return;
+    }
+
+    const char* start = m_buffer;
+    while(m_buffer < m_bufferEnd && m_buffer[0] != 0 && m_buffer[0] != '}')
+    {
+        if(*m_buffer++ == '\n')
+            m_lineNumber++;
+    }
+
+    size_t length = m_buffer - (start + 1);
+    if(m_sValueLength < length)
+    {
+        delete[] m_sValue;
+        m_sValueLength = length;
+        m_sValue = new char[m_sValueLength];
+    }
+    memcpy(m_sValue, (start + 1), length);
+    m_sValue[length] = 0;
+
+    Next();
+    m_token = HLSLToken_Asm;
+}
+
 int HLSLTokenizer::GetToken() const
 {
     return m_token;
@@ -518,6 +598,11 @@ float HLSLTokenizer::GetFloat() const
 int HLSLTokenizer::GetInt() const
 {
     return m_iValue;
+}
+
+const char* HLSLTokenizer::GetString() const
+{
+    return m_sValue;
 }
 
 const char* HLSLTokenizer::GetIdentifier() const

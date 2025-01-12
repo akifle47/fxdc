@@ -39,6 +39,7 @@ enum HLSLToken
     HLSLToken_Uint2,
     HLSLToken_Uint3,
     HLSLToken_Uint4,
+    HLSLToken_String,
     HLSLToken_Texture,
     HLSLToken_Sampler,
     HLSLToken_Sampler2D,
@@ -78,6 +79,11 @@ enum HLSLToken
     HLSLToken_SamplerState,
     HLSLToken_Technique,
     HLSLToken_Pass,
+    HLSLToken_Shared,
+    HLSLToken_VertexShader,
+    HLSLToken_PixelShader,
+    HLSLToken_Asm,
+    HLSLToken_Null,
 
     // Multi-character symbols.
     HLSLToken_LessEqual,
@@ -97,6 +103,7 @@ enum HLSLToken
     HLSLToken_FloatLiteral,
 	HLSLToken_HalfLiteral,
     HLSLToken_IntLiteral,
+    HLSLToken_StringLiteral,
     HLSLToken_Identifier,
 
     HLSLToken_EndOfStream,
@@ -112,6 +119,7 @@ public:
 
     /** The file name is only used for error reporting. */
     HLSLTokenizer(const char* fileName, const char* buffer, size_t length);
+    ~HLSLTokenizer();
 
     /** Advances to the next token in the stream. */
     void Next();
@@ -122,6 +130,8 @@ public:
     /** Returns the number of the current token. */
     float GetFloat() const;
     int   GetInt() const;
+
+    const char* GetString() const;
 
     /** Returns the identifier for the current token. */
     const char* GetIdentifier() const;
@@ -150,6 +160,9 @@ private:
     bool ScanNumber();
     bool ScanLineDirective();
 
+    //ugly hack for reading shader object assignement because i dont wanna parse assembly
+    void ScanAssemblyBlock();
+
 private:
 
     const char*         m_fileName;
@@ -158,9 +171,11 @@ private:
     int                 m_lineNumber;
     bool                m_error;
 
-    int                 m_token;
+    HLSLToken           m_token;
     float               m_fValue;
     int                 m_iValue;
+    char*               m_sValue;
+    size_t              m_sValueLength;
     char                m_identifier[s_maxIdentifier];
     char                m_lineDirectiveFileName[s_maxIdentifier];
     int                 m_tokenLineNumber;

@@ -35,6 +35,7 @@ enum HLSLNodeType
     HLSLNodeType_LiteralExpression,
     HLSLNodeType_IdentifierExpression,
     HLSLNodeType_ConstructorExpression,
+    HLSLNodeType_ShaderObjectExpression,
     HLSLNodeType_MemberAccess,
     HLSLNodeType_ArrayAccess,
     HLSLNodeType_FunctionCall,
@@ -42,6 +43,7 @@ enum HLSLNodeType
     HLSLNodeType_SamplerState,
     HLSLNodeType_Pass,
     HLSLNodeType_Technique,
+    HLSLNodeType_Annotation,
     HLSLNodeType_Attribute,
     HLSLNodeType_Pipeline,
     HLSLNodeType_Stage,
@@ -97,6 +99,7 @@ enum HLSLBaseType
     HLSLBaseType_Uint2,
     HLSLBaseType_Uint3,
     HLSLBaseType_Uint4,
+    HLSLBaseType_String,
     /*HLSLBaseType_Short,   // @@ Separate dimension from Base type, this is getting out of control.
     HLSLBaseType_Short2,
     HLSLBaseType_Short3,
@@ -115,6 +118,8 @@ enum HLSLBaseType
     HLSLBaseType_Sampler2DShadow,
     HLSLBaseType_Sampler2DMS,
     HLSLBaseType_Sampler2DArray,
+    HLSLBaseType_VertexShader,
+    HLSLBaseType_PixelShader,
     HLSLBaseType_UserDefined,       // struct
     HLSLBaseType_Expression,        // type argument for defined() sizeof() and typeof().
     HLSLBaseType_Auto,
@@ -123,6 +128,14 @@ enum HLSLBaseType
     HLSLBaseType_NumericCount = HLSLBaseType_LastNumeric - HLSLBaseType_FirstNumeric + 1
 };
     
+//only care about the ones supported by gta 4
+enum HLSLAnnotationType
+{
+    HLSLAnnotationType_Int = HLSLBaseType_Int,
+    HLSLAnnotationType_Float = HLSLBaseType_Float,
+    HLSLAnnotationType_String = HLSLBaseType_String,
+};
+
 extern const HLSLTypeDimension BaseTypeDimension[HLSLBaseType_Count];
 extern const HLSLBaseType ScalarBaseType[HLSLBaseType_Count];
 
@@ -260,7 +273,7 @@ enum HLSLTypeFlags
     //HLSLTypeFlag_Uniform = 0x04,
     //HLSLTypeFlag_Extern = 0x10,
     //HLSLTypeFlag_Volatile = 0x20,
-    //HLSLTypeFlag_Shared = 0x40,
+    HLSLTypeFlag_Shared = 0x40,
     //HLSLTypeFlag_Precise = 0x80,
 
     HLSLTypeFlag_Input = 0x100,
@@ -395,6 +408,27 @@ struct HLSLAttribute : public HLSLNode
     HLSLAttribute*      nextAttribute;
 };
 
+struct HLSLAnnotation : public HLSLNode
+{
+    static const HLSLNodeType s_type = HLSLNodeType_Annotation;
+    HLSLAnnotation()
+    {
+        name = NULL;
+        type = HLSLAnnotationType_Int;
+        iValue = 0;
+        nextAnnotation = NULL;
+    }
+    const char*        name;
+    HLSLAnnotationType type;
+    union
+    {
+        int         iValue;
+        float       fValue;
+        const char* sValue;
+    };
+    HLSLAnnotation* nextAnnotation;
+};
+
 struct HLSLDeclaration : public HLSLStatement
 {
     static const HLSLNodeType s_type = HLSLNodeType_Declaration;
@@ -406,6 +440,7 @@ struct HLSLDeclaration : public HLSLStatement
         nextDeclaration = NULL;
         assignment      = NULL;
         buffer          = NULL;
+        annotations     = NULL;
     }
     const char*         name;
     HLSLType            type;
@@ -414,6 +449,7 @@ struct HLSLDeclaration : public HLSLStatement
     HLSLDeclaration*    nextDeclaration;    // If multiple variables declared on a line.
     HLSLExpression*     assignment;
     HLSLBuffer*         buffer;
+    HLSLAnnotation*     annotations;
 };
 
 struct HLSLStruct : public HLSLStatement
@@ -690,6 +726,16 @@ struct HLSLConstructorExpression : public HLSLExpression
 	}
     HLSLType            type;
     HLSLExpression*     argument;
+};
+
+struct HLSLShaderObjectExpression : public HLSLExpression
+{
+    static const HLSLNodeType s_type = HLSLNodeType_ShaderObjectExpression;
+    HLSLShaderObjectExpression()
+    {
+        source = NULL;
+    }
+    const char* source;
 };
 
 /** object.member **/

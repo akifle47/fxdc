@@ -41,8 +41,8 @@ private:
                                             "StencilRef", "StencilMask", "StencilWriteMask", "ColorWriteEnable", "ColorWriteEnable1", "ColorWriteEnable2",
                                             "ColorWriteEnable3", "BlendOp", "BlendOpAlpha", "SeparateAlphaBlendEnable", "SrcBlendAlpha",
                                             "DestBlendAlpha", "INVALID_28", "SlopeScaleDepthBias", "DepthBias", "BlendFactor", "INVALID_32", "INVALID_33", "INVALID_34",
-                                            "TwoSideStencilMode", "CCWStencilFail", "CCWStencilZFail", "CCWStencilPass",
-                                            "CCWStencilFunc", "INVALID_40", "INVALID_41", "INVALID_42",};
+                                            "TwoSideStencilMode", "CCW_StencilFail", "CCW_StencilZFail", "CCW_StencilPass",
+                                            "CCWStencil_Func", "INVALID_40", "INVALID_41", "INVALID_42",};
 };
 
 struct eGrcBoolValue
@@ -112,7 +112,7 @@ struct eFillMode
 struct eBlendMode
 {
     BASIC_ENUM_REFLECTION_FIRST_INDEX_1(uint32_t, ZERO, ONE, SRCCOLOR, INVSRCCOLOR, SRCALPHA, INVSRCALPHA, DESTALPHA, INVDESTALPHA, DESTCOLOR,
-        INVDESTCOLOR, SRCALPHASAT, BOTHSRCALPHA, BOTHINVSRCALPHA, BLENDFACTOR, INVBLENDFACTOR, SRCCOLOR2, INVSRCCOLOR2)
+                                        INVDESTCOLOR, SRCALPHASAT, BOTHSRCALPHA, BOTHINVSRCALPHA, BLENDFACTOR, INVBLENDFACTOR, SRCCOLOR2, INVSRCCOLOR2)
 };
 struct eCullMode
 {
@@ -166,9 +166,9 @@ struct RenderState
             eStencilOp::Enum    StencilZFail;
             eStencilOp::Enum    StencilPass;
             eCmpFunc::Enum      StencilFunc;
-            uint32_t           StencilRef;
-            uint32_t           StencilMask;
-            uint32_t           StencilWriteMask;
+            uint32_t            StencilRef;
+            uint32_t            StencilMask;
+            uint32_t            StencilWriteMask;
             eColorWrite::Enum   ColorWriteEnable;
             eColorWrite::Enum   ColorWriteEnable1;
             eColorWrite::Enum   ColorWriteEnable2;
@@ -178,9 +178,9 @@ struct RenderState
             eGrcBoolValue::Enum SeparateBlendAlphaEnable;
             eBlendOp::Enum      SrcBlendAlpha;
             eBlendOp::Enum      DestBlendAlpha;
-            float              SlopeScaleDepthBias;
-            float              DepthBias;
-            uint32_t           BlendFactor;
+            float               SlopeScaleDepthBias;
+            float               DepthBias;
+            uint32_t            BlendFactor;
             eGrcBoolValue::Enum TwoSidedStencilMode;
             eStencilOp::Enum    CounterClockwiseStencilFail;
             eStencilOp::Enum    CounterClockwiseStencilZFail;

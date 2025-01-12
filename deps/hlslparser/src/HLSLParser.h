@@ -49,6 +49,7 @@ private:
     bool AcceptFloat(float& value);
 	bool AcceptHalf( float& value );
     bool AcceptInt(int& value);
+    bool AcceptString(const char*& value);
     bool AcceptType(bool allowVoid, HLSLType& type);
     bool ExpectType(bool allowVoid, HLSLType& type);
     bool AcceptBinaryOperator(int priority, HLSLBinaryOp& binaryOp);
@@ -76,6 +77,7 @@ private:
     bool ParseTerminalExpression(HLSLExpression*& expression, bool& needsEndParen);
     bool ParseExpressionList(int endToken, bool allowEmptyEnd, HLSLExpression*& firstExpression, int& numExpressions);
     bool ParseArgumentList(HLSLArgument*& firstArgument, int& numArguments, int& numOutputArguments);
+    bool ParseAnnotations(HLSLAnnotation*& annotations);
     bool ParseDeclarationAssignment(HLSLDeclaration* declaration);
     bool ParsePartialConstructor(HLSLExpression*& expression, HLSLBaseType type, const char* typeName);
 
@@ -132,6 +134,7 @@ private:
     Array<HLSLStruct*>      m_userTypes;
     Array<Variable>         m_variables;
     Array<HLSLFunction*>    m_functions;
+    Array<HLSLTechnique*>   m_techniques;
     int                     m_numGlobals;
 
     HLSLTree*               m_tree;
