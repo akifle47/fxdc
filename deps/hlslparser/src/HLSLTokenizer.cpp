@@ -83,8 +83,7 @@ static const char* _reservedWords[] =
         "shared",
         "VertexShader",
         "PixelShader",
-        "asm",
-        "NULL",
+        "asm"
     };
 
 static bool GetIsSymbol(char c)

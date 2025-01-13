@@ -83,7 +83,6 @@ enum HLSLToken
     HLSLToken_VertexShader,
     HLSLToken_PixelShader,
     HLSLToken_Asm,
-    HLSLToken_Null,
 
     // Multi-character symbols.
     HLSLToken_LessEqual,

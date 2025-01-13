@@ -1995,10 +1995,14 @@ bool HLSLParser::ParseDeclarationAssignment(HLSLDeclaration* declaration)
                 shaderObj->source = m_tree->AddString(m_tokenizer.GetString());
                 declaration->assignment = shaderObj;
             }
-            else if(!Accept(HLSLToken_Null))
+            else
             {
-                m_tokenizer.Error("Syntax error: expected a shader or NULL.");
-                return false;
+                const char* identifier;
+                if(!AcceptIdentifier(identifier) || strcmp(identifier, "NULL") != 0)
+                {
+                    m_tokenizer.Error("Syntax error: expected a shader or NULL.");
+                    return false;
+                }
             }
         }
         else if (!ParseExpression(declaration->assignment))
@@ -3105,7 +3109,8 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
             }
 
             const char* identifier = m_tokenizer.GetIdentifier();
-            if(!FindFunction(identifier))
+            const HLSLFunction* function = m_tree->FindFunction(identifier);
+            if(!function)
             {
                 m_tokenizer.Error("undeclared function '%s'", identifier);
                 return false;
@@ -3113,7 +3118,7 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
             m_tokenizer.Next();
 
             if(Expect('(') && Expect(')'))
-                stateAssignment->sValue = identifier;
+                stateAssignment->sValue = function->name;
             else
                 return false;
         }
@@ -3122,18 +3127,25 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
             if(m_tokenizer.GetToken() == HLSLToken_Identifier)
             {
                 const char* identifier = m_tokenizer.GetIdentifier();
-                bool isGlobal;
-                if(!FindVariable(identifier, isGlobal))
+                if(strcmp(m_tokenizer.GetIdentifier(), "NULL") == 0)
+                {
+                    stateAssignment->iValue = 0;
+                    m_tokenizer.Next();
+                    return true;
+                }
+
+                const HLSLDeclaration* decl = m_tree->FindGlobalDeclaration(identifier);
+                if(!decl)
                 {
                     m_tokenizer.Error("undeclared identifier '%s'", identifier);
                     return false;
                 }
-
-                stateAssignment->sValue = identifier;
-                m_tokenizer.Next();
-            }
-            else if(m_tokenizer.GetToken() != HLSLToken_Null)
-            {
+                else
+                {
+                    stateAssignment->sValue = decl->name;
+                    m_tokenizer.Next();
+                    return true;
+                }
 
                 char near[HLSLTokenizer::s_maxIdentifier];
                 m_tokenizer.GetTokenName(near);
