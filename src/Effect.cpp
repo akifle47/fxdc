@@ -1050,14 +1050,17 @@ bool Parameter::LoadFromFx(const HLSLDeclaration& declaration, HLSLTree& tree)
 
     if(mType == eType::TEXTURE)
     {
-        bool hasTexture = false;
-        HLSLSamplerState* samplerState = (HLSLSamplerState*)declaration.assignment;
-        for(auto state = samplerState->stateAssignments; state; state = state->nextStateAssignment)
+        if(declaration.assignment)
         {
-            if(strcmp(state->stateName, "Texture") == 0)
+            bool hasTexture = false;
+            HLSLSamplerState* samplerState = (HLSLSamplerState*)declaration.assignment;
+            for(auto state = samplerState->stateAssignments; state; state = state->nextStateAssignment)
             {
-                hasTexture = true;
-                break;
+                if(strcmp(state->stateName, "Texture") == 0)
+                {
+                    hasTexture = true;
+                    break;
+                }
             }
 
             if(!hasTexture)
