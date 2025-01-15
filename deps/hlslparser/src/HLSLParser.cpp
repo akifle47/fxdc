@@ -256,7 +256,7 @@ static const EffectState samplerStates[] = {
     {"AddressU", 1, textureAddressingValues},
     {"AddressV", 2, textureAddressingValues},
     {"AddressW", 3, textureAddressingValues},
-    // "BorderColor", 4, D3DCOLOR
+    { "BorderColor", 4, integerValues},
     {"MagFilter", 5, textureFilteringValues},
     {"MinFilter", 6, textureFilteringValues},
     {"MipFilter", 7, textureFilteringValues},
@@ -1918,9 +1918,16 @@ bool HLSLParser::ParseAnnotations(HLSLAnnotation*& annotations)
 
                 if(!AcceptInt(currAnnotation->iValue))
                 {
-                    m_tokenizer.Error("Syntax error: expected integer near '%s'", m_tokenizer.GetIdentifier());
-                    currAnnotation->iValue = 0;
-                    return false;
+                    HLSLExpression* expr; bool needsEndParen;
+                    if(ParseTerminalExpression(expr, needsEndParen))
+                    {
+                        if(!m_tree->GetExpressionValue(expr, &currAnnotation->fValue))
+                        {
+                            m_tokenizer.Error("Syntax error: expected integer near '%s'", m_tokenizer.GetIdentifier());
+                            currAnnotation->iValue = 0;
+                            return false;
+                        }
+                    }
                 }
                 currAnnotation->type = HLSLAnnotationType_Int;
             }
@@ -1931,9 +1938,16 @@ bool HLSLParser::ParseAnnotations(HLSLAnnotation*& annotations)
 
                 if(!AcceptFloat(currAnnotation->fValue))
                 {
-                    m_tokenizer.Error("Syntax error: expected float near '%s'", m_tokenizer.GetIdentifier());
-                    currAnnotation->iValue = 0;
-                    return false;
+                    HLSLExpression* expr; bool needsEndParen;
+                    if(ParseTerminalExpression(expr, needsEndParen))
+                    {
+                        if(!m_tree->GetExpressionValue(expr, &currAnnotation->fValue))
+                        {
+                            m_tokenizer.Error("Syntax error: expected float near '%s'", m_tokenizer.GetIdentifier());
+                            currAnnotation->iValue = 0;
+                            return false;
+                        }
+                    }
                 }
                 currAnnotation->type = HLSLAnnotationType_Float;
             }
