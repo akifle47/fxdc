@@ -247,11 +247,13 @@ void HLSLTokenizer::Next()
         return;
     }
 
-    if(m_buffer[0] == '"')
+    if(m_buffer[0] == '"' && m_buffer[-1] != '\\')
     {
         m_buffer++;
-        while(m_buffer < m_bufferEnd && m_buffer[0] != 0 && m_buffer[0] != '"')
+        while(m_buffer < m_bufferEnd && m_buffer[0] != 0)
         {
+            if(m_buffer[0] == '"' && m_buffer[-1] != '\\')
+                break;
             ++m_buffer;
         }
 
