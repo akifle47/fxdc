@@ -412,10 +412,11 @@ void Effect::SaveProgramParametersToFx(EffectWriter& file, const GpuProgram& pro
 
 GpuProgram& GpuProgram::operator=(const GpuProgram& rhs)
 {
+    mNameHash = rhs.mNameHash;
     mParams = rhs.mParams;
     if(rhs.mShaderData.GetCapacity())
     {
-        mShaderData = {mShaderData.GetCapacity()};
+        mShaderData = {rhs.mShaderData.GetCapacity()};
         memcpy(&mShaderData[0], &rhs.mShaderData[0], (size_t)mShaderData.GetCapacity());
     }
 
@@ -891,6 +892,7 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
 
         for(uint8_t i = 0; i < paramCount; i++)
         {
+            bool skip = false;
             switch(mType)
             {
                 default:
@@ -929,7 +931,10 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                 case Parameter::eType::TEXTURE:
                 {
                     if(samplerStatesWritten[value.AsSamplerState->Type])
-                        continue;
+                    {
+                        skip = true;
+                        break;
+                    }
 
                     auto samplerState = value.AsSamplerState;
                     file.WriteIndented("%s = ", eSamplerStateType::EnumToString(samplerState->Type));
@@ -1016,7 +1021,7 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
             else
                 value.AsVoid = (void*)((uintptr_t)value.AsVoid + (uintptr_t)stride);
 
-            if(isArray)
+            if(isArray && !skip)
             {
                 if(isTexture)
                 {
@@ -1048,22 +1053,22 @@ bool Parameter::LoadFromFx(const HLSLDeclaration& declaration, HLSLTree& tree)
         return false;
     }
 
+    const char* textureName = nullptr;
     if(mType == eType::TEXTURE)
     {
         if(declaration.assignment)
         {
-            bool hasTexture = false;
             HLSLSamplerState* samplerState = (HLSLSamplerState*)declaration.assignment;
             for(auto state = samplerState->stateAssignments; state; state = state->nextStateAssignment)
             {
                 if(strcmp(state->stateName, "Texture") == 0)
                 {
-                    hasTexture = true;
+                    textureName = state->sValue;
                     break;
                 }
             }
 
-            if(!hasTexture)
+            if(!textureName)
             {
                 Log::Error("%s(%d) : sampler state must have a Texture.", declaration.fileName, declaration.line);
                 return false;
@@ -1072,7 +1077,10 @@ bool Parameter::LoadFromFx(const HLSLDeclaration& declaration, HLSLTree& tree)
     }
 
     mName = declaration.name;
-    mSemantic = declaration.semantic ? declaration.semantic : declaration.name;
+    if(textureName)
+        mSemantic = textureName;
+    else
+        mSemantic = declaration.semantic ? declaration.semantic : declaration.name;
     mNameHash = rage::atStringHash(mName.Get());
     mSemanticHash = rage::atStringHash(mSemantic.Get());
 
@@ -1185,7 +1193,7 @@ bool Parameter::LoadFromFx(const HLSLDeclaration& declaration, HLSLTree& tree)
 
         for(uint8_t i = 0; i < mCount; i++)
         {
-            float value[4] {};
+            float value[4*4] {};
             tree.GetExpressionValue(assignment, value);
             assignment = assignment->nextExpression;
 

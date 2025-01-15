@@ -99,7 +99,6 @@ enum HLSLBaseType
     HLSLBaseType_Uint2,
     HLSLBaseType_Uint3,
     HLSLBaseType_Uint4,
-    HLSLBaseType_String,
     /*HLSLBaseType_Short,   // @@ Separate dimension from Base type, this is getting out of control.
     HLSLBaseType_Short2,
     HLSLBaseType_Short3,
@@ -110,6 +109,7 @@ enum HLSLBaseType
     HLSLBaseType_Ushort4,*/
     HLSLBaseType_LastInteger = HLSLBaseType_Uint4,
     HLSLBaseType_LastNumeric = HLSLBaseType_Uint4,
+    HLSLBaseType_String,
     HLSLBaseType_Texture,
     HLSLBaseType_Sampler,           // @@ use type inference to determine sampler type.
     HLSLBaseType_Sampler2D,
