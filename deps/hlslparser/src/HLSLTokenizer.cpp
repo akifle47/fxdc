@@ -133,9 +133,12 @@ HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t le
 
 HLSLTokenizer::~HLSLTokenizer()
 {
-    delete[] m_sValue;
-    m_sValue = nullptr;
-    m_sValueLength = 0;
+    if(m_sValue)
+    {
+        delete[] m_sValue;
+        m_sValue = nullptr;
+        m_sValueLength = 0;
+    }
 }
 
 void HLSLTokenizer::Next()
@@ -258,7 +261,7 @@ void HLSLTokenizer::Next()
         if(m_sValueLength < length)
         {
             delete[] m_sValue;
-            m_sValueLength = length;
+            m_sValueLength = length + 1;
             m_sValue = new char[m_sValueLength];
         }
         memcpy(m_sValue, (start + 1), length);
@@ -574,7 +577,7 @@ void HLSLTokenizer::ScanAssemblyBlock()
     if(m_sValueLength < length)
     {
         delete[] m_sValue;
-        m_sValueLength = length;
+        m_sValueLength = length + 1;
         m_sValue = new char[m_sValueLength];
     }
     memcpy(m_sValue, (start + 1), length);
