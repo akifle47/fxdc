@@ -3,6 +3,11 @@
 #include "rage/Array.h"
 #include "CString.h"
 #include "EffectWriter.h"
+#include "hlslparser/src/HLSLParser.h"
+
+#include "dx9/d3dx9.h"
+
+using namespace M4;
 
 class IFileStream;
 
@@ -199,6 +204,7 @@ public:
     void Save(class OFileStream& file) const;
     void Load(class IFileStream& file);
     void SaveToFx(EffectWriter& file, const class Effect& effect, uint16_t index) const;
+    bool LoadFromFx(const HLSLPass* pass, const class Effect& effect);
 
 private:
     uint8_t mVertexProgramIndex;
@@ -218,6 +224,7 @@ public:
     void Save(class OFileStream& file) const;
     void Load(class IFileStream& file);
     void SaveToFx(EffectWriter& file, const class Effect& effect) const;
+    bool LoadFromFx(const HLSLTechnique* technique, const class Effect& effect);
 
 private:
     uint32_t mNameHash;
@@ -252,6 +259,16 @@ struct eAnnotationType
         return Enum::COUNT;
     }
 
+    static Enum ParserTypeToEnum(HLSLAnnotationType type)
+    {
+        switch(type)
+        {
+            case HLSLAnnotationType_Int:    return INT;
+            case HLSLAnnotationType_Float:  return FLOAT;
+            case HLSLAnnotationType_String: return STRING;
+            default:                        return COUNT;
+        }
+    }
 private:
     static constexpr const char* msNames[] {"int", "float", "string"};
 };
@@ -288,6 +305,7 @@ public:
 
     void Save(class OFileStream& file) const;
     void Load(class IFileStream& file);
+    void LoadFromFx(const HLSLAnnotation& annotation, HLSLTree& tree);
 
     CString mName;
     eAnnotationType::Enum mType;
@@ -378,7 +396,7 @@ public:
     {
         enum Enum : uint8_t
         {
-            NONE, INT, FLOAT, VECTOR2, VECTOR3, VECTOR4, TEXTURE, BOOL, MATRIX3X4, MATRIX4X4, STRING, COUNT
+            NONE, INT, FLOAT, VECTOR2, VECTOR3, VECTOR4, TEXTURE, BOOL, MATRIX4X3, MATRIX4X4, STRING, COUNT
         };
 
         static const char* EnumToString(Enum type)
@@ -400,9 +418,30 @@ public:
             return Enum::COUNT;
         }
 
+        static Enum ParserTypeToEnum(HLSLBaseType type)
+        {
+            switch(type)
+            {
+                case HLSLBaseType_Int:          return INT;
+                case HLSLBaseType_Float:        return FLOAT;
+                case HLSLBaseType_Float2:       return VECTOR2;
+                case HLSLBaseType_Float3:       return VECTOR3;
+                case HLSLBaseType_Float4:       return VECTOR4;
+                case HLSLBaseType_Sampler:      return TEXTURE;
+                case HLSLBaseType_Sampler2D:    return TEXTURE;
+                case HLSLBaseType_Sampler3D:    return TEXTURE;
+                case HLSLBaseType_SamplerCube:  return TEXTURE;
+                case HLSLBaseType_Bool:         return BOOL;
+                case HLSLBaseType_Float4x3:     return MATRIX4X3;
+                case HLSLBaseType_Float4x4:     return MATRIX4X4;
+                case HLSLBaseType_String:       return STRING;
+                default: return NONE;
+            }
+        }
+
     private:
         static constexpr const char* msNames[]
-        {"NONE", "int", "float", "float2", "float3", "float4", "sampler", "bool", "float3x4", "float4x4", "string"};
+        {"NONE", "int", "float", "float2", "float3", "float4", "sampler", "bool", "float4x3", "float4x4", "string"};
     };
 
 public:
@@ -427,7 +466,7 @@ public:
 
     Parameter& operator=(const Parameter& rhs);
 
-    const char* GetName1() const
+    const char* GetName() const
     {
         return mName.Get();
     };
@@ -454,6 +493,7 @@ public:
     void Save(OFileStream& file) const;
     void Load(class IFileStream& file);
     void SaveToFx(EffectWriter& file, bool isGlobal = false) const;
+    bool LoadFromFx(const HLSLDeclaration& declaration, HLSLTree& tree);
 
 private:
     eType::Enum mType;
@@ -503,18 +543,21 @@ public:
     };
 
 public:
-    GpuProgram() : mParamCount(0), mShaderData()
+    GpuProgram() : mNameHash(0), mShaderData()
     {}
+
+    GpuProgram& operator=(const GpuProgram& rhs);
 
     void Save(OFileStream& file, const class Effect& effect) const;
     void Load(class IFileStream& file);
+    bool LoadFromAssembly(const HLSLDeclaration& declaration, const class Effect& effect);
+    bool LoadFromFunction(const HLSLFunction& function, const char* profile, const class Effect& effect);
 
     CString GetDisassembly() const;
 
-protected:
-    uint32_t mParamCount;
+    uint32_t mNameHash;
     rage::atArray<Param> mParams;
-    rage::atArray<uint8_t> mShaderData;
+    rage::atArray<uint8_t, uint32_t> mShaderData;
 };
 
 using VertexProgram = GpuProgram;
@@ -530,6 +573,7 @@ public:
 
     void Save(const std::filesystem::path& filePath) const;
     bool SaveToFx(const std::filesystem::path& filePath) const;
+    bool LoadFromFx(const HLSLParser& parser);
 
     const Parameter* FindParameterByName(const char* name) const;
     const Parameter* FindParameterByHash(uint32_t hash) const;
@@ -537,12 +581,17 @@ public:
     const Parameter* FindGlobalParameterByHash(uint32_t hash) const;
     const Parameter* GetParameterAt(uint32_t index) const;
 
+    uint32_t GetShaderIndex(const char* name) const;
+    uint32_t GetShaderIndex(uint32_t hash) const;
+
     CString GetVertexShaderDisassembly(uint32_t index) const;
     CString GetPixelShaderDisassembly(uint32_t index) const;
 
     static constexpr uint32_t MAGIC = (uint32_t)'axgr';
 
 private:
+    void SaveProgramParametersToFx(EffectWriter& file, const GpuProgram& program) const;
+
     rage::atArray<EffectTechnique> mTechniques;
     rage::atArray<Parameter> mParameters;
     rage::atArray<Parameter> mGlobalParameters;

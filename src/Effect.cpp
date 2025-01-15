@@ -2,10 +2,10 @@
 #include "Effect.h"
 #include "rage/StringHash.h"
 #include "Log.h"
-#include "dx9/d3dx9.h"
 
 #include <filesystem>
 #include <cassert>
+#include <set>
 
 static constexpr uint8_t sParamTypeSizeFactor[] {0, 1, 1, 1, 1, 1, 0, 1, 3, 4, 0, 0, 0, 0, 0, 0};
 
@@ -149,12 +149,14 @@ bool Effect::SaveToFx(const std::filesystem::path& filePath) const
 
         if(*line == '\0')
         {
-            file.WriteLineIndented("PixelShader PixelShader%d = NULL;", i);
+            file.WriteLineIndented("VertexShader VertexShader%d = NULL;", i);
             file.NewLine();
             continue;
         }
 
-        file.WriteLineIndented("VertexShader VertexShader%d =", i);
+        file.WriteLineIndented("VertexShader VertexShader%d", i);
+        SaveProgramParametersToFx(file, program);
+        file.WriteLine(" =");
         file.WriteLineIndented("asm");
         file.WriteLineIndented("{");
         file.PushTab();
@@ -187,7 +189,9 @@ bool Effect::SaveToFx(const std::filesystem::path& filePath) const
             continue;
         }
 
-        file.WriteLineIndented("PixelShader PixelShader%d =", i);
+        file.WriteLineIndented("PixelShader PixelShader%d", i);
+        SaveProgramParametersToFx(file, program);
+        file.WriteLine(" =");
         file.WriteLineIndented("asm");
         file.WriteLineIndented("{");
         file.PushTab();
@@ -209,6 +213,97 @@ bool Effect::SaveToFx(const std::filesystem::path& filePath) const
     for(const auto& technique : mTechniques)
     {
         technique.SaveToFx(file, *this);
+    }
+
+    return true;
+}
+
+bool Effect::LoadFromFx(const HLSLParser& parser)
+{
+    mTechniques = {};
+    mParameters = {};
+    mGlobalParameters = {};
+    mVertexPrograms = {};
+    mPixelPrograms = {};
+
+    for(int i = 0; i < parser.m_variables.GetSize(); i++)
+    {
+        auto& var = parser.m_variables[i];
+        if(var.type.baseType == HLSLBaseType_Texture || var.type.baseType == HLSLBaseType_VertexShader || var.type.baseType == HLSLBaseType_PixelShader)
+            continue;
+
+        if(var.type.flags & HLSLTypeFlag_Shared)
+        {
+            if(!mGlobalParameters.Grow(64).LoadFromFx(*parser.m_tree->FindGlobalDeclaration(var.name), *parser.m_tree))
+                return false;
+        }
+        else
+        {
+            if(!mParameters.Grow(64).LoadFromFx(*parser.m_tree->FindGlobalDeclaration(var.name), *parser.m_tree))
+                return false;
+        }
+    }
+
+    //find all shader functions
+    std::set<std::pair<uint32_t, const HLSLFunction*>> shaderFunctions;
+    for(int i = 0; i < parser.m_techniques.GetSize(); i++)
+    {
+        for(auto pass = parser.m_techniques[i]->passes; pass; pass = pass->nextPass)
+        {
+            for(auto assignement = pass->stateAssignments; assignement; assignement = assignement->nextStateAssignment)
+            {
+                if(strcmp(assignement->stateName, "VertexShader") == 0)
+                {
+                    const HLSLFunction* function = parser.FindFunction(assignement->sValue);
+                    if(function)
+                        shaderFunctions.emplace(0, function);
+                }
+                else if(strcmp(assignement->stateName, "PixelShader") == 0)
+                {
+                    const HLSLFunction* function = parser.FindFunction(assignement->sValue);
+                    if(function)
+                        shaderFunctions.emplace(1, function);
+                }
+            }
+        }
+    }
+
+    for(const auto& function : shaderFunctions)
+    {
+        if(function.first == 0)
+        {
+            if(!mVertexPrograms.Grow(16).LoadFromFunction(*function.second, "vs_3_0", *this))
+                return false;
+        }
+        else
+        {
+            if(!mPixelPrograms.Grow(16).LoadFromFunction(*function.second, "ps_3_0", *this))
+                return false;
+        }
+    }
+    for(int i = 0; i < parser.m_variables.GetSize(); i++)
+    {
+        const auto& var = parser.m_variables[i];
+        const auto& decl = *parser.m_tree->FindGlobalDeclaration(var.name);
+
+        if(var.type.baseType == HLSLBaseType_VertexShader)
+        {
+            if(!mVertexPrograms.Grow(16).LoadFromAssembly(decl, *this))
+                return false;
+        }
+        else if(var.type.baseType == HLSLBaseType_PixelShader)
+        {
+            if(!mPixelPrograms.Grow(16).LoadFromAssembly(decl, *this))
+                return false;
+        }
+    }
+
+    mTechniques = {(uint16_t)parser.m_techniques.GetSize()};
+    for(int i = 0; i < parser.m_techniques.GetSize(); i++)
+    {
+        auto technique = parser.m_techniques[i];
+        if(!mTechniques.Append().LoadFromFx(technique, *this))
+            return false;
     }
 
     return true;
@@ -252,6 +347,26 @@ const Parameter* Effect::GetParameterAt(uint32_t index) const
     return &mParameters[index];
 }
 
+uint32_t Effect::GetShaderIndex(const char* name) const
+{
+    return GetShaderIndex(rage::atStringHash(name));
+}
+
+uint32_t Effect::GetShaderIndex(uint32_t hash) const
+{
+    for(uint16_t i = 0; i < mVertexPrograms.GetCount(); i++)
+    {
+        if(mVertexPrograms[i].mNameHash == hash)
+            return i;
+    }
+
+    for(uint16_t i = 0; i < mPixelPrograms.GetCount(); i++)
+    {
+        if(mPixelPrograms[i].mNameHash == hash)
+            return i;
+    }
+}
+
 CString Effect::GetVertexShaderDisassembly(uint32_t index) const
 {
     return mVertexPrograms[index].GetDisassembly();
@@ -262,13 +377,58 @@ CString Effect::GetPixelShaderDisassembly(uint32_t index) const
     return mPixelPrograms[index].GetDisassembly();
 }
 
+void Effect::SaveProgramParametersToFx(EffectWriter& file, const GpuProgram& program) const
+{
+    file.WriteLine("<");
+    file.PushTab();
+    
+    size_t longestNameLen = 0;
+    for(auto& param : program.mParams)
+    {
+        const Parameter* fxParam;
+        fxParam = FindParameterByHash(param.mNameHash);
+        if(!fxParam)
+            fxParam = FindGlobalParameterByHash(param.mNameHash);
+        longestNameLen = max(longestNameLen, strlen(fxParam->GetName()));
+    }
+
+    for(auto& param : program.mParams)
+    {
+        const Parameter* fxParam;
+        fxParam = FindParameterByHash(param.mNameHash);
+        if(!fxParam)
+            fxParam = FindGlobalParameterByHash(param.mNameHash);
+        file.WriteIndented("string %s ", fxParam->GetName());
+        for(size_t i = 0; i < longestNameLen - strlen(fxParam->GetName()); i++)
+            file.Write(" ");
+        file.Write("= \"parameter register(%d)\";", param.mRegisterIndex);
+        file.NewLine();
+    }
+
+    file.PopTab();
+    file.Write(">");
+}
+
+
+GpuProgram& GpuProgram::operator=(const GpuProgram& rhs)
+{
+    mParams = rhs.mParams;
+    if(rhs.mShaderData.GetCapacity())
+    {
+        mShaderData = {mShaderData.GetCapacity()};
+        memcpy(&mShaderData[0], &rhs.mShaderData[0], (size_t)mShaderData.GetCapacity());
+    }
+
+    return *this;
+}
 
 void GpuProgram::Save(OFileStream& file, const Effect& effect) const
 {
-    file.WriteByte(&mParamCount);
-    if(mParamCount)
+    uint32_t paramCount = (uint32_t)mParams.GetCount();
+    file.WriteByte(&paramCount);
+    if(paramCount)
     {
-        for(uint32_t i = 0; i < mParamCount; i++)
+        for(uint32_t i = 0; i < paramCount; i++)
         {
             mParams[i].Save(file, effect);
         }
@@ -284,11 +444,12 @@ void GpuProgram::Save(OFileStream& file, const Effect& effect) const
 
 void GpuProgram::Load(IFileStream& file)
 {
-    file.ReadByte(&mParamCount);
-    if(mParamCount)
+    uint8_t paramCount;
+    file.ReadByte(&paramCount);
+    if(paramCount)
     {
-        mParams = {(uint16_t)mParamCount};
-        for(uint32_t i = 0; i < mParamCount; i++)
+        mParams = {(uint16_t)paramCount};
+        for(uint32_t i = 0; i < paramCount; i++)
         {
             mParams.Append().Load(file);
         }
@@ -304,6 +465,96 @@ void GpuProgram::Load(IFileStream& file)
         mShaderData = {shaderSize};
         file.Read(&mShaderData[0], shaderSize);
     }
+}
+
+bool GpuProgram::LoadFromAssembly(const HLSLDeclaration& declaration, const class Effect& effect)
+{
+    if(!declaration.assignment)
+        return true;
+
+    const HLSLShaderObjectExpression& expr = (HLSLShaderObjectExpression&)*declaration.assignment;
+    ID3DXBuffer* shaderBuffer;
+    ID3DXBuffer* errorBuffer;
+    if(FAILED(D3DXAssembleShader(expr.source, strlen(expr.source), nullptr, nullptr, 0, &shaderBuffer, &errorBuffer)))
+    {
+        Log::Error("Failed to compile shader \"%s\".", declaration.name);
+        if(errorBuffer->GetBufferSize())
+            Log::Error((char*)errorBuffer->GetBufferPointer());
+        return false;
+    }
+
+    mNameHash = rage::atStringHash(declaration.name);
+    mShaderData = {shaderBuffer->GetBufferSize()};
+    memcpy(&mShaderData[0], shaderBuffer->GetBufferPointer(), (size_t)shaderBuffer->GetBufferSize());
+
+    for(HLSLAnnotation* annotation = declaration.annotations; annotation; annotation = annotation->nextAnnotation)
+    {
+        if(annotation->type != HLSLAnnotationType_String || memcmp(annotation->sValue, "parameter", sizeof("parameter") - 1) != 0)
+            continue;
+            
+        const char* registerStrStart = strstr(annotation->sValue, "register(");
+        if(!registerStrStart)
+        {
+            Log::Error("%s(%d) : parameter must have a register", annotation->fileName, annotation->line);
+            return false;
+        }
+        registerStrStart += (sizeof("register(") - 1);
+
+        if(!strchr(registerStrStart, ')'))
+        {
+            Log::Error("%s(%d) : parameter register must be enclosed by parentheses", annotation->fileName, annotation->line);
+            return false;
+        }
+
+        mParams.Grow(16);
+        mParams.Back().mNameHash = rage::atStringHash(annotation->name);
+        auto param = effect.FindParameterByHash(mParams.Back().mNameHash);
+        if(!param)
+            param = effect.FindGlobalParameterByHash(mParams.Back().mNameHash);
+        mParams.Back().mType = param->GetType();
+        mParams.Back().mRegisterIndex = atoi(registerStrStart);
+    }
+
+    return true;
+}
+
+bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* profile, const class Effect& effect)
+{
+    ID3DXBuffer* shaderBuffer;
+    ID3DXBuffer* errorBuffer;
+    ID3DXConstantTable* ctable;
+    if(FAILED(D3DXCompileShaderFromFileA(function.fileName, nullptr, nullptr, function.name, profile, 0, &shaderBuffer, &errorBuffer, &ctable)))
+    {
+        Log::Error("Failed to compile shader \"%s\".", function.name);
+        if(errorBuffer->GetBufferSize())
+            Log::Error((char*)errorBuffer->GetBufferPointer());
+        return false;
+    }
+
+    mNameHash = rage::atStringHash(function.name);
+    mShaderData = {shaderBuffer->GetBufferSize()};
+    memcpy(&mShaderData[0], shaderBuffer->GetBufferPointer(), (size_t)shaderBuffer->GetBufferSize());
+
+    D3DXCONSTANTTABLE_DESC tableDesc {};
+    ctable->GetDesc(&tableDesc);
+    mParams = {(uint16_t)tableDesc.Constants};
+    for(uint32_t i = 0; i < tableDesc.Constants; i++)
+    {
+        D3DXHANDLE constantHandle = ctable->GetConstant(0, i);
+        D3DXCONSTANT_DESC constantDesc {};
+        uint32_t constantCount = 1;
+        ctable->GetConstantDesc(constantHandle, &constantDesc, &constantCount);
+
+        mParams.Append();
+        mParams.Back().mNameHash = rage::atStringHash(constantDesc.Name);
+        mParams.Back().mRegisterIndex = constantDesc.RegisterIndex;
+        auto param = effect.FindParameterByHash(mParams.Back().mNameHash);
+        if(!param)
+            param = effect.FindGlobalParameterByHash(mParams.Back().mNameHash);
+        mParams.Back().mType = param->GetType();
+    }
+
+    return true;
 }
 
 CString GpuProgram::GetDisassembly() const
@@ -332,7 +583,7 @@ void GpuProgram::Param::Save(OFileStream& file, const Effect& effect) const
 
     CString name;
     if(mNameHash == param->GetNameHash())
-        name = param->GetName1();
+        name = param->GetName();
     else
         name = param->GetSemantic();
 
@@ -729,12 +980,12 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                     file.WriteIndented(value.AsInt ? "true" : "false");
                 break;
 
-                case Parameter::eType::MATRIX3X4:
+                case Parameter::eType::MATRIX4X3:
                 {
                     rage::Matrix34 mtx = *value.AsMatrix34;
                     file.NewLine();
                     file.PushTab();
-                    file.WriteLineIndented("float3x4(%f, %f, %f,", mtx.a.x, mtx.a.y, mtx.a.z);
+                    file.WriteLineIndented("float4x3(%f, %f, %f,", mtx.a.x, mtx.a.y, mtx.a.z);
                     file.WriteLineIndented("         %f, %f, %f,", mtx.b.x, mtx.b.y, mtx.b.z);
                     file.WriteLineIndented("         %f, %f, %f,", mtx.c.x, mtx.c.y, mtx.c.z);
                     file.WriteIndented    ("         %f, %f, %f)", mtx.d.x, mtx.d.y, mtx.d.z);
@@ -788,6 +1039,161 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
     }
 }
 
+bool Parameter::LoadFromFx(const HLSLDeclaration& declaration, HLSLTree& tree)
+{
+    mType = eType::ParserTypeToEnum(declaration.type.baseType);
+    if(mType == eType::NONE)
+    {
+        Log::Error("%s(%d) : Unsupported variable type.", declaration.fileName, declaration.line);
+        return false;
+    }
+
+    if(mType == eType::TEXTURE)
+    {
+        bool hasTexture = false;
+        HLSLSamplerState* samplerState = (HLSLSamplerState*)declaration.assignment;
+        for(auto state = samplerState->stateAssignments; state; state = state->nextStateAssignment)
+        {
+            if(strcmp(state->stateName, "Texture") == 0)
+            {
+                hasTexture = true;
+                break;
+            }
+
+            if(!hasTexture)
+            {
+                Log::Error("%s(%d) : sampler state must have a Texture.", declaration.fileName, declaration.line);
+                return false;
+            }
+        }
+    }
+
+    mName = declaration.name;
+    mSemantic = declaration.semantic ? declaration.semantic : declaration.name;
+    mNameHash = rage::atStringHash(mName.Get());
+    mSemanticHash = rage::atStringHash(mSemantic.Get());
+
+    if(!declaration.type.array)
+    {
+        mCount = 1;
+    }
+    else
+    {
+        if(declaration.type.arraySize->nodeType != HLSLNodeType_LiteralExpression)
+        {
+            Log::Error("%s(%d) : array size must be a literal.", declaration.fileName, declaration.line);
+            return false;
+        }
+
+        HLSLLiteralExpression* literalExpr = (HLSLLiteralExpression*)declaration.type.arraySize;
+        mCount = literalExpr->iValue;
+    }
+
+    if(declaration.annotations)
+    {
+        for(auto annotation = declaration.annotations; annotation; annotation = annotation->nextAnnotation)
+            mAnnotationCount++;
+
+        auto annotation = declaration.annotations;
+        mAnnotations = new Annotation[mAnnotationCount];
+        for(uint8_t i = 0; i < mAnnotationCount; i++)
+        {
+            mAnnotations[i].LoadFromFx(*annotation, tree);
+            annotation = annotation->nextAnnotation;
+        }
+    }
+
+    if(!declaration.assignment)
+        return true;
+    
+    if(mType == eType::TEXTURE)
+    {
+        HLSLSamplerState* hlslSamplerState = (HLSLSamplerState*)declaration.assignment;
+        size_t numSamplerStates = hlslSamplerState->numStateAssignments - 1;
+        mCount = 0;
+        mSize = (sizeof(SamplerState) * (uint8_t)numSamplerStates) / 4;
+
+        mValue.AsSamplerState = new SamplerState[numSamplerStates];
+        memset(mValue.AsVoid, 0, mSize * 4);
+
+        auto samplerState = mValue.AsSamplerState;
+        for(auto hlslState = hlslSamplerState->stateAssignments; hlslState; hlslState = hlslState->nextStateAssignment)
+        {
+            if(strcmp(hlslState->stateName, "Texture") == 0)
+                continue;
+
+            samplerState->Type = eSamplerStateType::StringToEnum(hlslState->stateName);
+            switch(samplerState->Type)
+            {
+                default:
+                    __debugbreak();
+                break;
+
+                case eSamplerStateType::ADDRESSU:
+                case eSamplerStateType::ADDRESSV:
+                case eSamplerStateType::ADDRESSW:
+                    samplerState->Value.AddressU = (eTextureAddress::Enum)hlslState->iValue;
+                break;
+
+                //integers
+                case eSamplerStateType::MAXMIPLEVEL:
+                case eSamplerStateType::MAXANISOTROPY:
+                case eSamplerStateType::DMAPOFFSET:
+                case eSamplerStateType::DMAPOFFSET2:
+                    samplerState->Value.MaxMipLevel = hlslState->iValue;
+                break;
+
+                case eSamplerStateType::BORDERCOLOR:
+                    samplerState->Value.MaxMipLevel = hlslState->iValue;
+                break;
+
+                case eSamplerStateType::MAGFILTER:
+                case eSamplerStateType::MINFILTER:
+                case eSamplerStateType::MIPFILTER:
+                    samplerState->Value.MagFilter = (eTextureFilterType::Enum)hlslState->iValue;
+                break;
+
+                case eSamplerStateType::MIPMAPLODBIAS:
+                    samplerState->Value.MipMapLodBias = hlslState->fValue;
+                break;
+
+                case eSamplerStateType::SRGBTEXTURE:
+                    samplerState->Value.IsSRGB = (bool)hlslState->iValue;
+                break;
+            }
+
+            samplerState++;
+        }
+    }
+    else
+    {
+        //                                           NONE, INT, FLOAT, VECTOR2, VECTOR3, VECTOR4, TEXTURE, BOOL, MATRIX4X3, MATRIX4X4, STRING
+        static constexpr uint32_t numFloatsInTypes[] {0,    1,    1,      2,       3,        4,      0,      1,      12,         16,      1};
+        mSize = numFloatsInTypes[mType] * mCount;
+
+        uint32_t totalSize = 4 * mCount * sParamTypeSizeFactor[mType];
+        mValue.AsVoid = new uint8_t[4 * totalSize];
+        memset(mValue.AsVoid, 0, 4 * totalSize);
+
+        auto assignment = declaration.assignment;
+        uint32_t srcStride = numFloatsInTypes[mType] * 4;
+        uint32_t dstStride = (totalSize / mCount) * 4;
+        uint8_t* dst = (uint8_t*)mValue.AsVoid;
+
+        for(uint8_t i = 0; i < mCount; i++)
+        {
+            float value[4] {};
+            tree.GetExpressionValue(assignment, value);
+            assignment = assignment->nextExpression;
+
+            memcpy(dst, value, srcStride);
+            dst += dstStride;
+        }
+    }
+
+    return true;
+}
+
 
 void Annotation::Save(OFileStream& file) const
 {
@@ -826,6 +1232,16 @@ void Annotation::Load(IFileStream& file)
     {
         file.ReadDword(&mValue.AsFloat);
     }
+}
+
+void Annotation::LoadFromFx(const HLSLAnnotation& annotation, HLSLTree& tree)
+{
+    mName = annotation.name;
+    mType = eAnnotationType::ParserTypeToEnum(annotation.type);
+    if(mType == eAnnotationType::INT || mType == eAnnotationType::FLOAT)
+        mValue.AsInt = annotation.iValue;
+    else
+        mValue.AsString = strdup(annotation.sValue);
 }
 
 
@@ -867,6 +1283,21 @@ void EffectTechnique::SaveToFx(EffectWriter& file, const Effect& effect) const
     file.PopTab();
     file.WriteLine("}");
     file.NewLine();
+}
+
+bool EffectTechnique::LoadFromFx(const HLSLTechnique* technique, const Effect& effect)
+{
+    mName = technique->name;
+    mNameHash = rage::atStringHash(technique->name);
+
+    mPasses = {(uint16_t)technique->numPasses};
+    for(HLSLPass* pass = technique->passes; pass; pass = pass->nextPass)
+    {
+        if(!mPasses.Append().LoadFromFx(pass, effect))
+            return false;
+    }
+
+    return true;
 }
 
 
@@ -1026,4 +1457,78 @@ void EffectPass::SaveToFx(EffectWriter& file, const Effect& effect, uint16_t ind
 
     file.PopTab();
     file.WriteLineIndented("}");
+}
+
+bool EffectPass::LoadFromFx(const HLSLPass* pass, const Effect& effect)
+{
+    mRenderStates = {(uint16_t)pass->numStateAssignments};
+    for(HLSLStateAssignment* stateAssign = pass->stateAssignments; stateAssign; stateAssign = stateAssign->nextStateAssignment)
+    {
+        if(strcmp(stateAssign->stateName, "VertexShader") == 0)
+        {
+            mVertexProgramIndex = effect.GetShaderIndex(stateAssign->sValue);
+            continue;
+        }
+        else if(strcmp(stateAssign->stateName, "PixelShader") == 0)
+        {
+            mPixelProgramIndex = effect.GetShaderIndex(stateAssign->sValue);
+            continue;
+        }
+
+        eRenderStateType::Enum renderStateType = eRenderStateType::StringToEnum(stateAssign->stateName);
+        if(renderStateType == eRenderStateType::COUNT)
+        {
+            Log::Error("%s(%d) : unsupported or invalid render state type \"%s\"", stateAssign->fileName, stateAssign->line, stateAssign->stateName);
+            return false;
+        }
+
+        RenderState& renderState = mRenderStates.Append();
+        renderState.State = renderStateType;
+
+        switch(renderStateType)
+        {
+            //can just safely cast all these because their indexes is the same as what's defined in HLSLParser.cpp
+            case eRenderStateType::ZENABLE:
+            case eRenderStateType::FILLMODE:
+            case eRenderStateType::ZWRITEENABLE:
+            case eRenderStateType::ALPHATESTENABLE:
+            case eRenderStateType::ALPHABLENDENABLE:
+            case eRenderStateType::STENCILENABLE:
+            case eRenderStateType::SEPARATEALPHABLENDENABLE:
+            case eRenderStateType::TWOSIDEDSTENCILMODE:
+            case eRenderStateType::SRCBLEND:
+            case eRenderStateType::DESTBLEND:
+            case eRenderStateType::CULLMODE:
+            case eRenderStateType::ZFUNC:
+            case eRenderStateType::ALPHAFUNC:
+            case eRenderStateType::STENCILFUNC:
+            case eRenderStateType::CCW_STENCILFUNC:
+            case eRenderStateType::ALPHAREF:
+            case eRenderStateType::STENCILWRITEMASK:
+            case eRenderStateType::STENCILMASK:
+            case eRenderStateType::BLENDFACTOR:
+            case eRenderStateType::STENCILFAIL:
+            case eRenderStateType::STENCILZFAIL:
+            case eRenderStateType::CCW_STENCILFAIL:
+            case eRenderStateType::CCW_STENCILPASS:
+            case eRenderStateType::STENCILREF:
+            case eRenderStateType::COLORWRITEENABLE:
+            case eRenderStateType::COLORWRITEENABLE1:
+            case eRenderStateType::COLORWRITEENABLE2:
+            case eRenderStateType::COLORWRITEENABLE3:
+            case eRenderStateType::BLENDOP:
+            case eRenderStateType::BLENDOPALPHA:
+            case eRenderStateType::SRCBLENDALPHA:
+            case eRenderStateType::DESTBLENDALPHA:
+                renderState.Value.ZEnable = (eZBufferType::Enum)stateAssign->iValue;
+            break;
+
+            case eRenderStateType::SLOPESCALEDEPTHBIAS:
+            case eRenderStateType::DEPTHBIAS:
+                renderState.Value.SlopeScaleDepthBias = stateAssign->fValue;
+            break;
+        }
+    }
+
+    return true;
 }
