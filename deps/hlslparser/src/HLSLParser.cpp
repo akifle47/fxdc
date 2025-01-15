@@ -3787,7 +3787,7 @@ const HLSLType* HLSLParser::FindVariable(const char* name, bool& global) const
 {
     for (int i = m_variables.GetSize() - 1; i >= 0; --i)
     {
-        if (strcmp(m_variables[i].name, name) == 0)
+        if (m_variables[i].name && strcmp(m_variables[i].name, name) == 0)
         {
             global = (i < m_numGlobals);
             return &m_variables[i].type;
@@ -3800,7 +3800,7 @@ const HLSLFunction* HLSLParser::FindFunction(const char* name) const
 {
     for (int i = 0; i < m_functions.GetSize(); ++i)
     {
-        if (strcmp(m_functions[i]->name, name) == 0)
+        if (m_functions[i]->name && strcmp(m_functions[i]->name, name) == 0)
         {
             return m_functions[i];
         }
