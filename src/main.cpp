@@ -2,6 +2,7 @@
 
 #include "Effect.h"
 #include "FileStream.h"
+#include "hlslparser/src/HLSLParser.h"
 
 #include <Windows.h>
 #include <filesystem>
@@ -9,7 +10,7 @@
 
 //returns whether it should quit
 bool ProcessInput(const char* input);
-bool EffectTest(std::filesystem::path fileIn, std::filesystem::path dirOut);
+bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut);
 
 int main(int32_t argc, char** argv)
 {
@@ -39,7 +40,7 @@ int main(int32_t argc, char** argv)
     {
         const char* inFile = argv[1];
         const char* outDir = argv[2];
-        return (int)EffectTest(inFile, outDir) - 1;
+        return (int)ProcessEffect(inFile, outDir) - 1;
     }
 
     return 0;
@@ -73,42 +74,73 @@ bool ProcessInput(const char* input)
     {
         const char* inFile = tokens[0].Get();
         const char* outDir = tokens.size() == 1 ? "" : tokens[1].Get();
-        EffectTest(inFile, outDir);
+        ProcessEffect(inFile, outDir);
         return false;
     }
 
     return false;
 }
 
-bool EffectTest(std::filesystem::path fileIn, std::filesystem::path dirOut)
+bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut)
 {
-    IFileStream file(fileIn.string().c_str());
-    if(file.Open())
+    if(!dirOut.empty())
     {
-        Effect effect(file);
-
-        if(!dirOut.empty())
+        if(dirOut.has_filename())
         {
-            if(dirOut.has_filename())
-            {
-                //assume that a path with no file extension is a directory without a separator
-                if(dirOut.has_extension())
-                    dirOut.concat("\\");
-                else
-                    dirOut.replace_filename(dirOut.filename());
-            }
+            //assume that a path with no file extension is a directory without a separator
+            if(dirOut.has_extension())
+                dirOut.concat("\\");
             else
-            {
-                dirOut.concat(fileIn.filename().string());
-            }
+                dirOut.replace_filename(dirOut.filename());
         }
         else
         {
-            dirOut = fileIn;
+            dirOut.concat(fileIn.filename().string());
+        }
+    }
+    else
+    {
+        dirOut = fileIn;
+    }
+
+    if(fileIn.extension() == ".fxc")
+    {
+        IFileStream file(fileIn.string().c_str());
+        if(file.Open())
+        {
+            Effect effect(file);
+
+            dirOut.replace_extension(".fx");
+            return (bool)effect.SaveToFx(dirOut);
+        }
+    }
+    else if(fileIn.extension() == ".fx")
+    {
+        std::ifstream file(dirOut, std::ios::ate);
+        if(!file.good() || !file.is_open())
+        {
+            Log::Error("Unable to open file \"%s\"", dirOut.string().c_str());
+            return false;
         }
 
-        dirOut.replace_extension(".fx");
-        return effect.SaveToFx(dirOut);
+        CString cFileName = dirOut.string().c_str();
+        size_t fileSize = (size_t)file.tellg();
+        CString source(fileSize);
+        file.seekg(0);
+        file.read(source.Get(), fileSize);
+
+        M4::Allocator allocator;
+        M4::HLSLParser parser(&allocator, cFileName.Get(), source.Get(), fileSize);
+        M4::HLSLTree tree(&allocator);
+        if(!parser.Parse(&tree))
+        {
+            return false;
+        }
+        
+        Effect effect;
+        if(!effect.LoadFromFx(parser))
+            return false;
+        return (bool)effect.Save(dirOut.replace_extension(".fxc"));
     }
 
     return false;

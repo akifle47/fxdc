@@ -571,7 +571,7 @@ public:
     Effect() = default;
     ~Effect() = default;
 
-    void Save(const std::filesystem::path& filePath) const;
+    bool Save(const std::filesystem::path& filePath) const;
     bool SaveToFx(const std::filesystem::path& filePath) const;
     bool LoadFromFx(const HLSLParser& parser);
 

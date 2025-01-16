@@ -75,11 +75,11 @@ Effect::Effect(IFileStream& file)
     }
 }
 
-void Effect::Save(const std::filesystem::path& filePath) const
+bool Effect::Save(const std::filesystem::path& filePath) const
 {
     OFileStream file(filePath.string().c_str());
     if(!file.Open())
-        return;
+        return false;
 
     file.WriteDword(&Effect::MAGIC);
 
@@ -117,6 +117,8 @@ void Effect::Save(const std::filesystem::path& filePath) const
     {
         mTechniques[i].Save(file);
     }
+
+    return true;
 }
 
 bool Effect::SaveToFx(const std::filesystem::path& filePath) const
