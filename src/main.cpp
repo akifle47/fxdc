@@ -116,14 +116,14 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut)
     }
     else if(fileIn.extension() == ".fx")
     {
-        std::ifstream file(dirOut, std::ios::ate);
+        std::ifstream file(fileIn, std::ios::ate);
         if(!file.good() || !file.is_open())
         {
-            Log::Error("Unable to open file \"%s\"", dirOut.string().c_str());
+            Log::Error("Unable to open file \"%s\"", fileIn.string().c_str());
             return false;
         }
 
-        CString cFileName = dirOut.string().c_str();
+        CString cFileName = fileIn.string().c_str();
         size_t fileSize = (size_t)file.tellg();
         CString source(fileSize);
         file.seekg(0);
