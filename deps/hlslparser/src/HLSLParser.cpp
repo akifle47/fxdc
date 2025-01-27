@@ -1517,13 +1517,28 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
             // Handle optional register.
             if (Accept(':'))
             {
-                // @@ Currently we support either a semantic or a register, but not both.
-                if (AcceptIdentifier(declaration->semantic)) {
-                    int k = 1;
-                }
-                else if (!Expect(HLSLToken_Register) || !Expect('(') || !ExpectIdentifier(declaration->registerName) || !Expect(')'))
+                if(AcceptIdentifier(declaration->semantic))
+                    Accept(':');
+
+                if ( Accept(HLSLToken_Register))
                 {
-                    return false;
+                    if(!Expect('('))
+                        return false;
+
+                    const char* registerName;
+                    if(!AcceptIdentifier(registerName))
+                        return false;
+
+                    if(registerName[0] != 'c' && registerName[0] != 's')
+                    {
+                        m_tokenizer.Error("Invalid register type");
+                        return false;
+                    }
+
+                    declaration->registerIndex = strtol(++registerName, nullptr, 10);
+
+                    if(!Expect(')'))
+                        return false;
                 }
             }
 

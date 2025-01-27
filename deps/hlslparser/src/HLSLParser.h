@@ -112,8 +112,6 @@ private:
     const HLSLFunction* FindFunction(const HLSLFunction* fun) const;
 
     bool GetIsFunction(const char* name) const;
-    
-    bool GetIsFunctionAShader(const struct Variable& var);
 
     /** Finds the overloaded function that matches the specified call. */
     const HLSLFunction* MatchFunctionCall(const HLSLFunctionCall* functionCall, const char* name);

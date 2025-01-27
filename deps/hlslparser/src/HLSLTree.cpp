@@ -1389,7 +1389,7 @@ void GroupParameters(HLSLTree * tree)
                     declaration->nextDeclaration = NULL;
 
                     // Reset attributes.
-                    declaration->registerName = NULL;
+                    declaration->registerIndex = -1;
                     //declaration->semantic = NULL;         // @@ Don't do this!
 
                     declaration = nextDeclaration;

@@ -435,7 +435,7 @@ struct HLSLDeclaration : public HLSLStatement
     HLSLDeclaration()
     {
         name            = NULL;
-        registerName    = NULL;
+        registerIndex   = -1;
         semantic        = NULL;
         nextDeclaration = NULL;
         assignment      = NULL;
@@ -444,7 +444,7 @@ struct HLSLDeclaration : public HLSLStatement
     }
     const char*         name;
     HLSLType            type;
-    const char*         registerName;       // @@ Store register index?
+    int                 registerIndex;
     const char*         semantic;
     HLSLDeclaration*    nextDeclaration;    // If multiple variables declared on a line.
     HLSLExpression*     assignment;
