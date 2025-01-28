@@ -49,6 +49,12 @@ enum HLSLToken
     HLSLToken_Sampler2DMS,
     HLSLToken_Sampler2DArray,
 
+    HLSLToken_DefineDirective,
+    HLSLToken_IfDefDirective,
+    HLSLToken_IfndefDirective,
+    HLSLToken_ElseDirective,
+    HLSLToken_EndIfDirective,
+
     // Reserved words.
     HLSLToken_If,
     HLSLToken_Else,
@@ -158,6 +164,8 @@ private:
 	bool SkipPragmaDirective();
     bool ScanNumber();
     bool ScanLineDirective();
+    bool ScanIncludeDirective();
+    bool ScanPreProcessorDirectives();
 
     //ugly hack for reading shader object assignement because i dont wanna parse assembly
     void ScanAssemblyBlock();
@@ -165,6 +173,7 @@ private:
 private:
 
     const char*         m_fileName;
+    const char*         m_source;
     const char*         m_buffer;
     const char*         m_bufferEnd;
     int                 m_lineNumber;
@@ -177,6 +186,7 @@ private:
     size_t              m_sValueLength;
     char                m_identifier[s_maxIdentifier];
     char                m_lineDirectiveFileName[s_maxIdentifier];
+    HLSLTokenizer*      m_includeDirectiveTokenizer;
     int                 m_tokenLineNumber;
 
 };

@@ -17,6 +17,8 @@
 #include "HLSLTokenizer.h"
 #include "HLSLTree.h"
 
+#include <stack>
+
 class Effect;
 
 namespace M4
@@ -113,6 +115,8 @@ private:
 
     bool GetIsFunction(const char* name) const;
 
+    bool GetIsMacroDefined(const char* identifier) const;
+
     /** Finds the overloaded function that matches the specified call. */
     const HLSLFunction* MatchFunctionCall(const HLSLFunctionCall* functionCall, const char* name);
 
@@ -138,6 +142,8 @@ private:
     Array<HLSLFunction*>    m_functions;
     Array<HLSLTechnique*>   m_techniques;
     int                     m_numGlobals;
+    Array<const char*>      m_macroDirectiveIdentifiers;
+    std::stack<bool>        m_conditionalDirectivesStack;
 
     HLSLTree*               m_tree;
     

@@ -4,7 +4,7 @@
 
 #include "HLSLTokenizer.h"
 
-#include <ctype.h>
+#include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,6 +55,11 @@ static const char* _reservedWords[] =
         "sampler2DShadow",
         "sampler2DMS",
         "sampler2DArray",
+        "#define",
+        "#ifdef",
+        "#ifndef",
+        "#else",
+        "#endif",
         "if",
         "else",
         "for",
@@ -122,29 +127,63 @@ HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t le
     m_sValue = new char[m_sValueLength];
     memset(m_sValue, 0, m_sValueLength);
 
-    m_buffer            = buffer;
-    m_bufferEnd         = buffer + length;
-    m_fileName          = fileName;
+    m_source            = strdup(buffer);
+    m_buffer            = m_source;
+    m_bufferEnd         = m_buffer + length;
+    m_fileName          = strdup(fileName);
     m_lineNumber        = 1;
     m_tokenLineNumber   = 1;
     m_error             = false;
+
+    m_includeDirectiveTokenizer = nullptr;
     Next();
 }
 
 HLSLTokenizer::~HLSLTokenizer()
 {
+    if(m_source)
+    {
+        delete[] m_source;
+        m_source = nullptr;
+    }
+
+    if(m_fileName)
+    {
+        delete[] m_fileName;
+        m_fileName = nullptr;
+    }
+
     if(m_sValue)
     {
         delete[] m_sValue;
         m_sValue = nullptr;
         m_sValueLength = 0;
     }
+
+    if(m_includeDirectiveTokenizer)
+    {
+        delete m_includeDirectiveTokenizer;
+        m_includeDirectiveTokenizer = nullptr;
+    }
 }
 
 void HLSLTokenizer::Next()
 {
+    if(m_includeDirectiveTokenizer)
+    {
+        m_includeDirectiveTokenizer->Next();
+        if(m_includeDirectiveTokenizer->m_token == HLSLToken_EndOfStream)
+        {
+            delete m_includeDirectiveTokenizer;
+            m_includeDirectiveTokenizer = nullptr;
+        }
+        else
+        {
+            return;
+        }
+    }
 
-	while( SkipWhitespace() || SkipComment() || ScanLineDirective() || SkipPragmaDirective() )
+	while( SkipWhitespace() || SkipComment() || ScanLineDirective() || SkipPragmaDirective())
     {
     }
 
@@ -161,6 +200,9 @@ void HLSLTokenizer::Next()
         m_token = HLSLToken_EndOfStream;
         return;
     }
+
+    if(ScanIncludeDirective() || ScanPreProcessorDirectives())
+        return;
 
     const char* start = m_buffer;
 
@@ -559,6 +601,118 @@ bool HLSLTokenizer::ScanLineDirective()
 
 }
 
+bool HLSLTokenizer::ScanIncludeDirective()
+{
+    if(*m_buffer == '#')
+    {
+        const char* ptr = m_buffer + 1;
+        while(isspace(*ptr))
+            ptr++;
+
+        if(strncmp(ptr, "include", 7) == 0)
+        {
+            ptr += 7;
+            while(isspace(*ptr))
+                ptr++;
+
+            char fileName[256] {};
+            char* fileNamePtr = fileName;
+
+            const char* separator = strrchr(m_fileName, '\\');
+            if(!separator)
+                separator = strrchr(m_fileName, '/');
+            if(separator)
+            {
+                size_t len = (size_t)(separator - m_fileName) + 1;
+                fileNamePtr += len;
+                strncpy(fileName, m_fileName, len);
+            }
+
+            if(*ptr == '"')
+            {
+                while(*++ptr != '"')
+                {
+                    *fileNamePtr++ = *ptr;
+                    if(*ptr == '\n' || ptr == m_bufferEnd)
+                    {
+                        Error("Syntax error: expected a file name after #include");
+                        return false;
+                    }
+                }
+                *fileNamePtr = '\0';
+            }
+            else
+            {
+                Error("Syntax error: expected a file name after #include");
+                return false;
+            }
+
+            m_buffer = ++ptr;
+            std::ifstream file(fileName, std::ios::binary | std::ios::ate);
+            if(!file.good() || !file.is_open())
+            {
+                Error("Unable to open file \"%s\"", fileName);
+                return false;
+            }
+
+            size_t fileSize = (size_t)file.tellg();
+            char* source = new char[fileSize + 1];
+            file.seekg(0);
+            file.read(source, fileSize);
+            source[fileSize] = '\0';
+            m_includeDirectiveTokenizer = new HLSLTokenizer(fileName, source, fileSize);
+            delete[] source;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HLSLTokenizer::ScanPreProcessorDirectives()
+{
+    if(*m_buffer == '#')
+    {
+        const char* ptr = m_buffer + 1;
+        while(isspace(*ptr))
+            ptr++;
+
+        if(strncmp(ptr, "ifdef", 5) == 0)
+        {
+            m_token = HLSLToken_IfDefDirective;
+            ptr += 5;
+        }
+        else if(strncmp(ptr, "ifndef", 6) == 0)
+        {
+            m_token = HLSLToken_IfndefDirective;
+            ptr += 6;
+        }
+        else if(strncmp(ptr, "endif", 5) == 0)
+        {
+            m_token = HLSLToken_EndIfDirective;
+            ptr += 5;
+        }
+        else if(strncmp(ptr, "else", 5) == 0)
+        {
+            m_token = HLSLToken_ElseDirective;
+            ptr += 4;
+        }
+        else if(strncmp(ptr, "define", 6) == 0)
+        {
+            m_token = HLSLToken_DefineDirective;
+            ptr += 6;
+        }
+        else
+        {
+            return false;
+        }
+
+        m_buffer = ptr;
+        return true;
+    }
+
+    return false;
+}
+
 void HLSLTokenizer::ScanAssemblyBlock()
 {
     Next();
@@ -591,41 +745,66 @@ void HLSLTokenizer::ScanAssemblyBlock()
 
 int HLSLTokenizer::GetToken() const
 {
+    if(m_includeDirectiveTokenizer)
+        return m_includeDirectiveTokenizer->m_token;
     return m_token;
 }
 
 float HLSLTokenizer::GetFloat() const
 {
+    if(m_includeDirectiveTokenizer)
+        return m_includeDirectiveTokenizer->m_fValue;
     return m_fValue;
 }
 
 int HLSLTokenizer::GetInt() const
 {
+    if(m_includeDirectiveTokenizer)
+        return m_includeDirectiveTokenizer->m_iValue;
     return m_iValue;
 }
 
 const char* HLSLTokenizer::GetString() const
 {
+    if(m_includeDirectiveTokenizer)
+        return m_includeDirectiveTokenizer->m_sValue;
     return m_sValue;
 }
 
 const char* HLSLTokenizer::GetIdentifier() const
 {
+    if(m_includeDirectiveTokenizer)
+        return m_includeDirectiveTokenizer->m_identifier;
     return m_identifier;
 }
 
 int HLSLTokenizer::GetLineNumber() const
 {
+    if(m_includeDirectiveTokenizer)
+        return m_includeDirectiveTokenizer->m_tokenLineNumber;
     return m_tokenLineNumber;
 }
 
 const char* HLSLTokenizer::GetFileName() const
 {
+    if(m_includeDirectiveTokenizer)
+        return m_includeDirectiveTokenizer->m_fileName;
     return m_fileName;
 }
 
 void HLSLTokenizer::Error(const char* format, ...)
 {
+    if(m_includeDirectiveTokenizer)
+    {
+        char buffer[1024];
+        va_list args;
+        va_start(args, format);
+        int result = vsnprintf(buffer, sizeof(buffer) - 1, format, args);
+        va_end(args);
+
+        m_includeDirectiveTokenizer->Error(buffer);
+        return;
+    }
     // It's not always convenient to stop executing when an error occurs,
     // so just track once we've hit an error and stop reporting them until
     // we successfully bail out of execution.
@@ -647,6 +826,12 @@ void HLSLTokenizer::Error(const char* format, ...)
 
 void HLSLTokenizer::GetTokenName(char buffer[s_maxIdentifier]) const
 {
+    if(m_includeDirectiveTokenizer)
+    {
+        m_includeDirectiveTokenizer->GetTokenName(buffer);
+        return;
+    }
+
     if (m_token == HLSLToken_FloatLiteral || m_token == HLSLToken_HalfLiteral )
     {
         sprintf(buffer, "%f", m_fValue);

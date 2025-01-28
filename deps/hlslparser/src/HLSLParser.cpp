@@ -1176,7 +1176,8 @@ HLSLParser::HLSLParser(Allocator* allocator, const char* fileName, const char* b
     m_userTypes(allocator),
     m_variables(allocator),
     m_functions(allocator),
-    m_techniques(allocator)
+    m_techniques(allocator),
+    m_macroDirectiveIdentifiers(allocator)
 {
     m_numGlobals = 0;
     m_tree = NULL;
@@ -1300,18 +1301,59 @@ bool HLSLParser::AcceptString(const char*& value)
 
 bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
 {
-    HLSLAttribute * attributes = NULL;
-    ParseAttributeBlock(attributes);
-
     int line             = GetLineNumber();
     const char* fileName = GetFileName();
-    
+
+    bool doesNotExpectSemicolon = false;
+
+    if(Accept(HLSLToken_DefineDirective))
+    {
+        doesNotExpectSemicolon = true;
+        if(!ExpectIdentifier(m_macroDirectiveIdentifiers.PushBackNew()))
+            return false;
+    }
+    else if(Accept(HLSLToken_IfDefDirective))
+    {
+        doesNotExpectSemicolon = true;
+        const char* identifier = nullptr;
+        if(!ExpectIdentifier(identifier))
+            return false;
+        m_conditionalDirectivesStack.push(GetIsMacroDefined(identifier));
+    }
+    else if(Accept(HLSLToken_IfndefDirective))
+    {
+        doesNotExpectSemicolon = true;
+        const char* identifier = nullptr;
+        if(!ExpectIdentifier(identifier))
+            return false;
+        m_conditionalDirectivesStack.push(!GetIsMacroDefined(identifier));
+    }
+    else if(Accept(HLSLToken_ElseDirective))
+    {
+        doesNotExpectSemicolon = true;
+        if(m_conditionalDirectivesStack.size())
+            m_conditionalDirectivesStack.top() = !m_conditionalDirectivesStack.top();
+    }
+    else if(Accept(HLSLToken_EndIfDirective))
+    {
+        doesNotExpectSemicolon = true;
+        if(m_conditionalDirectivesStack.size())
+            m_conditionalDirectivesStack.pop();
+    }
+
+    if(m_conditionalDirectivesStack.size() && !m_conditionalDirectivesStack.top())
+    {
+        m_tokenizer.Next();
+        return true;
+    }
+
+    HLSLAttribute* attributes = NULL;
+    ParseAttributeBlock(attributes);
+
     HLSLType type;
     //HLSLBaseType type;
     //const char*  typeName = NULL;
     //int          typeFlags = false;
-
-    bool doesNotExpectSemicolon = false;
 
     if (Accept(HLSLToken_Struct))
     {
@@ -1736,7 +1778,7 @@ bool HLSLParser::ParseStatement(HLSLStatement*& statement, const HLSLType& retur
         }
         return true;
     }
-    
+
     // For statement.
     if (Accept(HLSLToken_For))
     {
@@ -3907,6 +3949,16 @@ bool HLSLParser::GetIsFunction(const char* name) const
         }
     }
 
+    return false;
+}
+
+bool HLSLParser::GetIsMacroDefined(const char* identifier) const
+{
+    for(int i = 0; i < m_macroDirectiveIdentifiers.GetSize(); i++)
+    {
+        if(strcmp(m_macroDirectiveIdentifiers[i], identifier) == 0)
+            return true;
+    }
     return false;
 }
 
