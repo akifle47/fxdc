@@ -1471,6 +1471,13 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
             return false;
         }
 
+        bool global;
+        if(FindVariable(globalName, global))
+        {
+            m_tokenizer.Error("'%s' redefinition", globalName);
+            return false;
+        }
+
         if (Accept('('))
         {
             // Function declaration.
