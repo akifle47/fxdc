@@ -228,6 +228,15 @@ bool Effect::LoadFromFx(const HLSLParser& parser)
     mVertexPrograms = {};
     mPixelPrograms = {};
 
+    ID3DXBuffer* shaderBuffer;
+    ID3DXBuffer* errorBuffer;
+    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", 0, &shaderBuffer, &errorBuffer, nullptr)))
+    {
+        if(errorBuffer)
+            Log::Error((char*)errorBuffer->GetBufferPointer());
+        return false;
+    }
+
     for(int i = 0; i < parser.m_variables.GetSize(); i++)
     {
         auto& var = parser.m_variables[i];
