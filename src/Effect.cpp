@@ -523,6 +523,11 @@ bool GpuProgram::LoadFromAssembly(const HLSLDeclaration& declaration, const clas
         auto param = effect.FindParameterByHash(mParams.Back().mNameHash);
         if(!param)
             param = effect.FindGlobalParameterByHash(mParams.Back().mNameHash);
+        if(!param)
+        {
+            Log::Error("%s(%d) : undeclared parameter \"%s\"", annotation->fileName, annotation->line, annotation->name);
+            return false;
+        }
         mParams.Back().mType = param->GetType();
         mParams.Back().mRegisterIndex = atoi(registerStrStart);
     }
