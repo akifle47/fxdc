@@ -803,7 +803,7 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                 if(annotation.mType == eAnnotationType::INT)
                     file.Write("%d;", annotation.mValue.AsInt);
                 else if(annotation.mType == eAnnotationType::FLOAT)
-                    file.Write("%f;", annotation.mValue.AsFloat);
+                    file.Write("%.9g;", annotation.mValue.AsFloat);
                 else
                 {
                     //replaces " characters with \"
@@ -860,7 +860,7 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                 if(annotation.mType == eAnnotationType::INT)
                     file.Write("%d;", annotation.mValue.AsInt);
                 else if(annotation.mType == eAnnotationType::FLOAT)
-                    file.Write("%f;", annotation.mValue.AsFloat);
+                    file.Write("%.9g;", annotation.mValue.AsFloat);
                 else
                 {
                     //replaces " characters with \"
@@ -920,27 +920,27 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                 break;
 
                 case Parameter::eType::FLOAT:
-                    file.WriteIndented("%f", *value.AsFloat);
+                    file.WriteIndented("%.9g", *value.AsFloat);
                 break;
 
                 case Parameter::eType::VECTOR2:
                 {
                     rage::Vector2 v = *value.AsVector2;
-                    file.WriteIndented("float2(%f, %f)", v.x, v.y);
+                    file.WriteIndented("float2(%.9g, %.9g)", v.x, v.y);
                 }
                 break;
 
                 case Parameter::eType::VECTOR3:
                 {
                     rage::Vector3 v = *value.AsVector3;
-                    file.WriteIndented("float3(%f, %f, %f)", v.x, v.y, v.z);
+                    file.WriteIndented("float3(%.9g, %.9g, %.9g)", v.x, v.y, v.z);
                 }
                 break;
 
                 case Parameter::eType::VECTOR4:
                 {
                     rage::Vector4 v = *value.AsVector4;
-                    file.WriteIndented("float4(%f, %f, %f, %f)", v.x, v.y, v.z, v.w);
+                    file.WriteIndented("float4(%.9g, %.9g, %.9g, %.9g)", v.x, v.y, v.z, v.w);
                 }
                 break;
 
@@ -986,7 +986,7 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                         break;
 
                         case eSamplerStateType::MIPMAPLODBIAS:
-                            file.Write("%f", samplerState->Value.MipMapLodBias);
+                            file.Write("%.9g", samplerState->Value.MipMapLodBias);
                         break;
 
                         case eSamplerStateType::SRGBTEXTURE:
@@ -1006,10 +1006,10 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                     rage::Matrix34 mtx = *value.AsMatrix34;
                     file.NewLine();
                     file.PushTab();
-                    file.WriteLineIndented("float4x3(%f, %f, %f,", mtx.a.x, mtx.a.y, mtx.a.z);
-                    file.WriteLineIndented("         %f, %f, %f,", mtx.b.x, mtx.b.y, mtx.b.z);
-                    file.WriteLineIndented("         %f, %f, %f,", mtx.c.x, mtx.c.y, mtx.c.z);
-                    file.WriteIndented    ("         %f, %f, %f)", mtx.d.x, mtx.d.y, mtx.d.z);
+                    file.WriteLineIndented("float4x3(%.9g, %.9g, %.9g,", mtx.a.x, mtx.a.y, mtx.a.z);
+                    file.WriteLineIndented("         %.9g, %.9g, %.9g,", mtx.b.x, mtx.b.y, mtx.b.z);
+                    file.WriteLineIndented("         %.9g, %.9g, %.9g,", mtx.c.x, mtx.c.y, mtx.c.z);
+                    file.WriteIndented    ("         %.9g, %.9g, %.9g)", mtx.d.x, mtx.d.y, mtx.d.z);
                     file.PopTab();
                 }
                 break;
@@ -1019,10 +1019,10 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                     rage::Matrix44 mtx = *value.AsMatrix44;
                     file.NewLine();
                     file.PushTab();
-                    file.WriteLineIndented("float4x4(%f, %f, %f, %f,", mtx.a.x, mtx.a.y, mtx.a.z, mtx.a.w);
-                    file.WriteLineIndented("         %f, %f, %f, %f,", mtx.b.x, mtx.b.y, mtx.b.z, mtx.b.w);
-                    file.WriteLineIndented("         %f, %f, %f, %f,", mtx.c.x, mtx.c.y, mtx.c.z, mtx.c.w);
-                    file.WriteIndented    ("         %f, %f, %f, %f)",  mtx.d.x, mtx.d.y, mtx.d.z, mtx.d.w);
+                    file.WriteLineIndented("float4x4(%.9g, %.9g, %.9g, %.9g,", mtx.a.x, mtx.a.y, mtx.a.z, mtx.a.w);
+                    file.WriteLineIndented("         %.9g, %.9g, %.9g, %.9g,", mtx.b.x, mtx.b.y, mtx.b.z, mtx.b.w);
+                    file.WriteLineIndented("         %.9g, %.9g, %.9g, %.9g,", mtx.c.x, mtx.c.y, mtx.c.z, mtx.c.w);
+                    file.WriteIndented    ("         %.9g, %.9g, %.9g, %.9g)",  mtx.d.x, mtx.d.y, mtx.d.z, mtx.d.w);
                     file.PopTab();
                 }
                 break;
@@ -1470,7 +1470,7 @@ void EffectPass::SaveToFx(EffectWriter& file, const Effect& effect, uint16_t ind
 
             case eRenderStateType::SLOPESCALEDEPTHBIAS:
             case eRenderStateType::DEPTHBIAS:
-            file.Write("%f", value.SlopeScaleDepthBias);
+            file.Write("%.9g", value.SlopeScaleDepthBias);
             break;
         }
         file.WriteLine(";");

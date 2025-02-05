@@ -2005,12 +2005,14 @@ bool HLSLParser::ParseAnnotations(HLSLAnnotation*& annotations)
                     HLSLExpression* expr; bool needsEndParen;
                     if(ParseTerminalExpression(expr, needsEndParen))
                     {
-                        if(!m_tree->GetExpressionValue(expr, &currAnnotation->fValue))
+                        float value[4];
+                        if(!m_tree->GetExpressionValue(expr, value))
                         {
                             m_tokenizer.Error("Syntax error: expected float near '%s'", m_tokenizer.GetIdentifier());
                             currAnnotation->iValue = 0;
                             return false;
                         }
+                        currAnnotation->fValue = value[0];
                     }
                 }
                 currAnnotation->type = HLSLAnnotationType_Float;
@@ -3259,8 +3261,10 @@ bool HLSLParser::ParseStateValue(const EffectState * state, HLSLStateAssignment*
                 HLSLExpression* expr; bool needsEndParen;
                 if(ParseTerminalExpression(expr, needsEndParen))
                 {
-                    if(m_tree->GetExpressionValue(expr, &stateAssignment->fValue))
+                    float value[4];
+                    if(m_tree->GetExpressionValue(expr, value))
                     {
+                        stateAssignment->fValue = value[0];
                         return true;
                     }
                 }
