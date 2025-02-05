@@ -447,7 +447,7 @@ bool HLSLTokenizer::ScanNumber()
     if (m_bufferEnd - m_buffer > 2 && m_buffer[0] == '0' && m_buffer[1] == 'x')
     {
         char*   hEnd = NULL;
-        int     iValue = strtol(m_buffer+2, &hEnd, 16);
+        int     iValue = (int)strtoul(m_buffer+2, &hEnd, 16);
         if (GetIsNumberSeparator(hEnd[0]))
         {
             m_buffer = hEnd;
