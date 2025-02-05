@@ -998,7 +998,7 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                 break;
 
                 case Parameter::eType::BOOL:
-                    file.WriteIndented(value.AsInt ? "true" : "false");
+                    file.WriteIndented(*value.AsInt ? "true" : "false");
                 break;
 
                 case Parameter::eType::MATRIX4X3:
