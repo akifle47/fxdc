@@ -976,7 +976,7 @@ void Parameter::SaveToFx(EffectWriter& file, bool isGlobal) const
                         break;
 
                         case eSamplerStateType::BORDERCOLOR:
-                            file.Write("0x%x", samplerState->Value.BorderColor);
+                            file.Write("0x%X", samplerState->Value.BorderColor);
                         break;
 
                         case eSamplerStateType::MAGFILTER:
@@ -1411,7 +1411,7 @@ void EffectPass::SaveToFx(EffectWriter& file, const Effect& effect, uint16_t ind
             case eRenderStateType::STENCILWRITEMASK:
             case eRenderStateType::STENCILMASK:
             case eRenderStateType::BLENDFACTOR:
-                file.Write("%X", value.AlphaRef);
+                file.Write("0x%X", value.AlphaRef);
             break;
 
             case eRenderStateType::STENCILFAIL:
