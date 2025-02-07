@@ -55,6 +55,7 @@ static const char* _reservedWords[] =
         "sampler2DShadow",
         "sampler2DMS",
         "sampler2DArray",
+        "#include",
         "#define",
         "#ifdef",
         "#ifndef",
@@ -135,7 +136,8 @@ HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t le
     m_tokenLineNumber   = 1;
     m_error             = false;
 
-    m_includeDirectiveTokenizer = nullptr;
+    PreProcess();
+
     Next();
 }
 
@@ -159,30 +161,10 @@ HLSLTokenizer::~HLSLTokenizer()
         m_sValue = nullptr;
         m_sValueLength = 0;
     }
-
-    if(m_includeDirectiveTokenizer)
-    {
-        delete m_includeDirectiveTokenizer;
-        m_includeDirectiveTokenizer = nullptr;
-    }
 }
 
 void HLSLTokenizer::Next()
 {
-    if(m_includeDirectiveTokenizer)
-    {
-        m_includeDirectiveTokenizer->Next();
-        if(m_includeDirectiveTokenizer->m_token == HLSLToken_EndOfStream)
-        {
-            delete m_includeDirectiveTokenizer;
-            m_includeDirectiveTokenizer = nullptr;
-        }
-        else
-        {
-            return;
-        }
-    }
-
 	while( SkipWhitespace() || SkipComment() || ScanLineDirective() || SkipPragmaDirective())
     {
     }
@@ -201,7 +183,7 @@ void HLSLTokenizer::Next()
         return;
     }
 
-    if(ScanIncludeDirective() || ScanPreProcessorDirectives())
+    if(ScanPreProcessorDirectives())
         return;
 
     const char* start = m_buffer;
@@ -346,6 +328,69 @@ void HLSLTokenizer::Next()
 
     m_token = HLSLToken_Identifier;
 
+}
+
+void HLSLTokenizer::PreProcess()
+{
+    //TODO: move other preprocessing code here too
+
+    std::string newSource;
+    while(m_token != HLSLToken_EndOfStream && !m_error)
+    {
+        const char* prevBuffer = m_buffer;
+        Next();
+
+        if(m_token == HLSLToken_IncludeDirective)
+        {
+            Next();
+            if(m_token != HLSLToken_StringLiteral)
+            {
+                Error("Syntax error: expected a file name");
+                return;
+            }
+
+            char fileName[256] {};
+            const char* separator = strrchr(m_fileName, '\\');
+            if(!separator)
+                separator = strrchr(m_fileName, '/');
+            if(separator)
+            {
+                size_t len = (size_t)(separator - m_fileName) + 1;
+                strncpy(fileName, m_fileName, len);
+            }
+            strcat(fileName, m_sValue);
+
+            std::ifstream file(fileName, std::ios::binary | std::ios::ate);
+            if(!file.good() || !file.is_open())
+            {
+                Error("Unable to open file \"%s\"", fileName);
+                return;
+            }
+
+            size_t fileSize = (size_t)file.tellg();
+            std::string source;
+            source.resize(fileSize);
+            file.seekg(0);
+            file.read(source.data(), fileSize);
+
+            HLSLTokenizer tokenizer(fileName, source.data(), source.length());
+            if(tokenizer.m_error)
+            {
+                return;
+            }
+            newSource.append(tokenizer.m_source);
+        }
+        else
+        {
+            newSource.append(prevBuffer, m_buffer - prevBuffer);
+        }
+    }
+
+    m_source = strdup(newSource.data());
+    m_buffer = m_source;
+    m_bufferEnd = m_buffer + newSource.length();
+    m_lineNumber = 1;
+    m_tokenLineNumber = 1;
 }
 
 bool HLSLTokenizer::SkipWhitespace()
@@ -601,7 +646,7 @@ bool HLSLTokenizer::ScanLineDirective()
 
 }
 
-bool HLSLTokenizer::ScanIncludeDirective()
+bool HLSLTokenizer::ScanPreProcessorDirectives()
 {
     if(*m_buffer == '#')
     {
@@ -611,72 +656,10 @@ bool HLSLTokenizer::ScanIncludeDirective()
 
         if(strncmp(ptr, "include", 7) == 0)
         {
+            m_token = HLSLToken_IncludeDirective;
             ptr += 7;
-            while(isspace(*ptr))
-                ptr++;
-
-            char fileName[256] {};
-            char* fileNamePtr = fileName;
-
-            const char* separator = strrchr(m_fileName, '\\');
-            if(!separator)
-                separator = strrchr(m_fileName, '/');
-            if(separator)
-            {
-                size_t len = (size_t)(separator - m_fileName) + 1;
-                fileNamePtr += len;
-                strncpy(fileName, m_fileName, len);
-            }
-
-            if(*ptr == '"')
-            {
-                while(*++ptr != '"')
-                {
-                    *fileNamePtr++ = *ptr;
-                    if(*ptr == '\n' || ptr == m_bufferEnd)
-                    {
-                        Error("Syntax error: expected a file name after #include");
-                        return false;
-                    }
-                }
-                *fileNamePtr = '\0';
-            }
-            else
-            {
-                Error("Syntax error: expected a file name after #include");
-                return false;
-            }
-
-            m_buffer = ++ptr;
-            std::ifstream file(fileName, std::ios::binary | std::ios::ate);
-            if(!file.good() || !file.is_open())
-            {
-                Error("Unable to open file \"%s\"", fileName);
-                return false;
-            }
-
-            size_t fileSize = (size_t)file.tellg();
-            char* source = new char[fileSize + 1];
-            file.seekg(0);
-            file.read(source, fileSize);
-            source[fileSize] = '\0';
-            m_includeDirectiveTokenizer = new HLSLTokenizer(fileName, source, fileSize);
-            delete[] source;
-            return true;
         }
-    }
-    return false;
-}
-
-bool HLSLTokenizer::ScanPreProcessorDirectives()
-{
-    if(*m_buffer == '#')
-    {
-        const char* ptr = m_buffer + 1;
-        while(isspace(*ptr))
-            ptr++;
-
-        if(strncmp(ptr, "ifdef", 5) == 0)
+        else if(strncmp(ptr, "ifdef", 5) == 0)
         {
             m_token = HLSLToken_IfDefDirective;
             ptr += 5;
@@ -745,66 +728,41 @@ void HLSLTokenizer::ScanAssemblyBlock()
 
 int HLSLTokenizer::GetToken() const
 {
-    if(m_includeDirectiveTokenizer)
-        return m_includeDirectiveTokenizer->m_token;
     return m_token;
 }
 
 float HLSLTokenizer::GetFloat() const
 {
-    if(m_includeDirectiveTokenizer)
-        return m_includeDirectiveTokenizer->m_fValue;
     return m_fValue;
 }
 
 int HLSLTokenizer::GetInt() const
 {
-    if(m_includeDirectiveTokenizer)
-        return m_includeDirectiveTokenizer->m_iValue;
     return m_iValue;
 }
 
 const char* HLSLTokenizer::GetString() const
 {
-    if(m_includeDirectiveTokenizer)
-        return m_includeDirectiveTokenizer->m_sValue;
     return m_sValue;
 }
 
 const char* HLSLTokenizer::GetIdentifier() const
 {
-    if(m_includeDirectiveTokenizer)
-        return m_includeDirectiveTokenizer->m_identifier;
     return m_identifier;
 }
 
 int HLSLTokenizer::GetLineNumber() const
 {
-    if(m_includeDirectiveTokenizer)
-        return m_includeDirectiveTokenizer->m_tokenLineNumber;
     return m_tokenLineNumber;
 }
 
 const char* HLSLTokenizer::GetFileName() const
 {
-    if(m_includeDirectiveTokenizer)
-        return m_includeDirectiveTokenizer->m_fileName;
     return m_fileName;
 }
 
 void HLSLTokenizer::Error(const char* format, ...)
 {
-    if(m_includeDirectiveTokenizer)
-    {
-        char buffer[1024];
-        va_list args;
-        va_start(args, format);
-        int result = vsnprintf(buffer, sizeof(buffer) - 1, format, args);
-        va_end(args);
-
-        m_includeDirectiveTokenizer->Error(buffer);
-        return;
-    }
     // It's not always convenient to stop executing when an error occurs,
     // so just track once we've hit an error and stop reporting them until
     // we successfully bail out of execution.
@@ -826,12 +784,6 @@ void HLSLTokenizer::Error(const char* format, ...)
 
 void HLSLTokenizer::GetTokenName(char buffer[s_maxIdentifier]) const
 {
-    if(m_includeDirectiveTokenizer)
-    {
-        m_includeDirectiveTokenizer->GetTokenName(buffer);
-        return;
-    }
-
     if (m_token == HLSLToken_FloatLiteral || m_token == HLSLToken_HalfLiteral )
     {
         sprintf(buffer, "%f", m_fValue);
