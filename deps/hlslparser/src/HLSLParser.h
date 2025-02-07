@@ -17,7 +17,7 @@
 #include "HLSLTokenizer.h"
 #include "HLSLTree.h"
 
-#include <stack>
+#include <vector>
 
 class Effect;
 
@@ -143,7 +143,7 @@ private:
     Array<HLSLTechnique*>   m_techniques;
     int                     m_numGlobals;
     Array<const char*>      m_macroDirectiveIdentifiers;
-    std::stack<bool>        m_conditionalDirectivesStack;
+    std::vector<bool>       m_conditionalDirectivesStack;
 
     HLSLTree*               m_tree;
     

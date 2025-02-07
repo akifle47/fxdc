@@ -1311,6 +1311,7 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
         doesNotExpectSemicolon = true;
         if(!ExpectIdentifier(m_macroDirectiveIdentifiers.PushBackNew()))
             return false;
+        return true;
     }
     else if(Accept(HLSLToken_IfDefDirective))
     {
@@ -1318,7 +1319,7 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
         const char* identifier = nullptr;
         if(!ExpectIdentifier(identifier))
             return false;
-        m_conditionalDirectivesStack.push(GetIsMacroDefined(identifier));
+        m_conditionalDirectivesStack.push_back(GetIsMacroDefined(identifier));
     }
     else if(Accept(HLSLToken_IfndefDirective))
     {
@@ -1326,25 +1327,32 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
         const char* identifier = nullptr;
         if(!ExpectIdentifier(identifier))
             return false;
-        m_conditionalDirectivesStack.push(!GetIsMacroDefined(identifier));
+        m_conditionalDirectivesStack.push_back(!GetIsMacroDefined(identifier));
     }
     else if(Accept(HLSLToken_ElseDirective))
     {
         doesNotExpectSemicolon = true;
         if(m_conditionalDirectivesStack.size())
-            m_conditionalDirectivesStack.top() = !m_conditionalDirectivesStack.top();
+            m_conditionalDirectivesStack[m_conditionalDirectivesStack.size() - 1] = !m_conditionalDirectivesStack[m_conditionalDirectivesStack.size() - 1];
     }
     else if(Accept(HLSLToken_EndIfDirective))
     {
         doesNotExpectSemicolon = true;
         if(m_conditionalDirectivesStack.size())
-            m_conditionalDirectivesStack.pop();
+            m_conditionalDirectivesStack.pop_back();
+        return true;
     }
 
-    if(m_conditionalDirectivesStack.size() && !m_conditionalDirectivesStack.top())
+    if(m_conditionalDirectivesStack.size())
     {
-        m_tokenizer.Next();
-        return true;
+        for(bool b : m_conditionalDirectivesStack)
+        {
+            if(!b)
+            {
+                m_tokenizer.Next();
+                return true;
+            }
+        }
     }
 
     HLSLAttribute* attributes = NULL;
@@ -1470,7 +1478,7 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
         {
             return false;
         }
-
+        
         bool global;
         if(FindVariable(globalName, global))
         {
