@@ -1,6 +1,9 @@
 #ifndef HLSL_TOKENIZER_H
 #define HLSL_TOKENIZER_H
 
+#include <vector>
+#include <string>
+
 namespace M4
 {
 
@@ -160,7 +163,9 @@ public:
 
 private:
 
-    void PreProcess();
+    HLSLTokenizer(const char* fileName, const char* buffer, size_t length, std::vector<std::string>& macroIdentifiers, std::vector<bool>& conditionalStack);
+
+    void PreProcess(std::vector<std::string>& macroIdentifiers, std::vector<bool>& conditionalStack);
 
     bool SkipWhitespace();
     bool SkipComment();

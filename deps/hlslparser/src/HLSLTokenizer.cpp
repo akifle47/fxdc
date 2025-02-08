@@ -136,7 +136,28 @@ HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t le
     m_tokenLineNumber   = 1;
     m_error             = false;
 
-    PreProcess();
+    std::vector<std::string> macroIdentifiers;
+    std::vector<bool> conditionalStack;
+    PreProcess(macroIdentifiers, conditionalStack);
+
+    Next();
+}
+
+HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t length, std::vector<std::string>& macroIdentifiers, std::vector<bool>& conditionalStack)
+{
+    m_sValueLength = 10000;
+    m_sValue = new char[m_sValueLength];
+    memset(m_sValue, 0, m_sValueLength);
+
+    m_source = strdup(buffer);
+    m_buffer = m_source;
+    m_bufferEnd = m_buffer + length;
+    m_fileName = strdup(fileName);
+    m_lineNumber = 1;
+    m_tokenLineNumber = 1;
+    m_error = false;
+
+    PreProcess(macroIdentifiers, conditionalStack);
 
     Next();
 }
@@ -330,10 +351,8 @@ void HLSLTokenizer::Next()
 
 }
 
-void HLSLTokenizer::PreProcess()
+void HLSLTokenizer::PreProcess(std::vector<std::string>& macroIdentifiers, std::vector<bool>& conditionalStack)
 {
-    //TODO: move other preprocessing code here too
-
     std::string newSource;
     while(m_token != HLSLToken_EndOfStream && !m_error)
     {
@@ -373,24 +392,87 @@ void HLSLTokenizer::PreProcess()
             file.seekg(0);
             file.read(source.data(), fileSize);
 
-            HLSLTokenizer tokenizer(fileName, source.data(), source.length());
+            HLSLTokenizer tokenizer(fileName, source.data(), source.length(), macroIdentifiers, conditionalStack);
             if(tokenizer.m_error)
             {
                 return;
             }
+
             newSource.append(tokenizer.m_source);
+            continue;
         }
-        else
+        else if(m_token == HLSLToken_DefineDirective)
         {
-            newSource.append(prevBuffer, m_buffer - prevBuffer);
+            Next();
+            if(m_token != HLSLToken_Identifier)
+            {
+                Error("Syntax error: expected identifier");
+                return;
+            }
+            macroIdentifiers.emplace_back(m_identifier);
+            continue;
         }
+        else if(m_token == HLSLToken_IfDefDirective)
+        {
+            Next();
+            if(m_token != HLSLToken_Identifier)
+            {
+                Error("Syntax error: expected identifier");
+                return;
+            }
+            conditionalStack.push_back(std::find(macroIdentifiers.begin(), macroIdentifiers.end(), m_identifier) != macroIdentifiers.end());
+            continue;
+        }
+        else if(m_token == HLSLToken_IfndefDirective)
+        {
+            Next();
+            if(m_token != HLSLToken_Identifier)
+            {
+                Error("Syntax error: expected identifier");
+                return;
+            }
+            conditionalStack.push_back(std::find(macroIdentifiers.begin(), macroIdentifiers.end(), m_identifier) == macroIdentifiers.end());
+            continue;
+        }
+        else if(m_token == HLSLToken_ElseDirective)
+        {
+            if(conditionalStack.size())
+                conditionalStack.at(conditionalStack.size() - 1) = !conditionalStack.at(conditionalStack.size() - 1);
+            continue;
+        }
+        else if(m_token == HLSLToken_EndIfDirective)
+        {
+            if(conditionalStack.size())
+                conditionalStack.pop_back();
+            continue;
+        }
+
+        if(conditionalStack.size())
+        {
+            bool continueLoop = false;
+            for(bool b : conditionalStack)
+            {
+                if(!b)
+                {
+                    continueLoop = true;
+                    break;
+                }
+            }
+
+            if(continueLoop)
+                continue;
+        }
+
+        newSource.append(prevBuffer, m_buffer - prevBuffer);
     }
 
+    delete[] m_source;
     m_source = strdup(newSource.data());
     m_buffer = m_source;
     m_bufferEnd = m_buffer + newSource.length();
     m_lineNumber = 1;
     m_tokenLineNumber = 1;
+    m_token = (HLSLToken)0;
 }
 
 bool HLSLTokenizer::SkipWhitespace()
