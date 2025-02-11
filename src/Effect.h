@@ -551,7 +551,7 @@ public:
     void Save(OFileStream& file, const class Effect& effect) const;
     void Load(class IFileStream& file);
     bool LoadFromAssembly(const HLSLDeclaration& declaration, const class Effect& effect);
-    bool LoadFromFunction(const HLSLFunction& function, const char* profile, const class Effect& effect);
+    bool LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect);
 
     CString GetDisassembly() const;
 
@@ -587,6 +587,8 @@ public:
     CString GetVertexShaderDisassembly(uint32_t index) const;
     CString GetPixelShaderDisassembly(uint32_t index) const;
 
+    const char* GetFilePath() const;
+
     static constexpr uint32_t MAGIC = (uint32_t)'axgr';
 
 private:
@@ -597,4 +599,5 @@ private:
     rage::atArray<Parameter> mGlobalParameters;
     rage::atArray<VertexProgram> mVertexPrograms;
     rage::atArray<PixelProgram> mPixelPrograms;
+    CString mFilePath;
 };

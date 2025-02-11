@@ -28,6 +28,8 @@ static inline CString ReadString(IFileStream& file)
 
 Effect::Effect(IFileStream& file)
 {
+    mFilePath = file.GetFilePath();
+
     uint32_t magic;
     file.ReadDword(&magic);
     if(magic != MAGIC)
@@ -228,6 +230,8 @@ bool Effect::LoadFromFx(const HLSLParser& parser)
     mVertexPrograms = {};
     mPixelPrograms = {};
 
+    mFilePath = parser.m_tokenizer.GetFileName();
+
     ID3DXBuffer* shaderBuffer;
     ID3DXBuffer* errorBuffer;
     if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", 0, &shaderBuffer, &errorBuffer, nullptr)))
@@ -283,12 +287,12 @@ bool Effect::LoadFromFx(const HLSLParser& parser)
     {
         if(function.first == 0)
         {
-            if(!mVertexPrograms.Grow(16).LoadFromFunction(*function.second, "vs_3_0", *this))
+            if(!mVertexPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "vs_3_0", *this))
                 return false;
         }
         else
         {
-            if(!mPixelPrograms.Grow(16).LoadFromFunction(*function.second, "ps_3_0", *this))
+            if(!mPixelPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "ps_3_0",  *this))
                 return false;
         }
     }
@@ -386,6 +390,11 @@ CString Effect::GetVertexShaderDisassembly(uint32_t index) const
 CString Effect::GetPixelShaderDisassembly(uint32_t index) const
 {
     return mPixelPrograms[index].GetDisassembly();
+}
+
+const char* Effect::GetFilePath() const
+{
+    return mFilePath.Get();
 }
 
 void Effect::SaveProgramParametersToFx(EffectWriter& file, const GpuProgram& program) const
@@ -535,12 +544,12 @@ bool GpuProgram::LoadFromAssembly(const HLSLDeclaration& declaration, const clas
     return true;
 }
 
-bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* profile, const class Effect& effect)
+bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect)
 {
     ID3DXBuffer* shaderBuffer;
     ID3DXBuffer* errorBuffer;
     ID3DXConstantTable* ctable;
-    if(FAILED(D3DXCompileShaderFromFileA(function.fileName, nullptr, nullptr, function.name, profile, 0, &shaderBuffer, &errorBuffer, &ctable)))
+    if(FAILED(D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, D3DXSHADER_PACKMATRIX_ROWMAJOR, &shaderBuffer, &errorBuffer, &ctable)))
     {
         Log::Error("Failed to compile shader \"%s\".", function.name);
         if(errorBuffer->GetBufferSize())

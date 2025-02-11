@@ -1,9 +1,6 @@
 #ifndef HLSL_TOKENIZER_H
 #define HLSL_TOKENIZER_H
 
-#include <vector>
-#include <string>
-
 namespace M4
 {
 
@@ -161,11 +158,9 @@ public:
     /** Gets a human readable text description of the specified token. */
     static void GetTokenName(int token, char buffer[s_maxIdentifier]);
 
+    const char* GetPreProcessedSource() const;
+
 private:
-
-    HLSLTokenizer(const char* fileName, const char* buffer, size_t length, std::vector<std::string>& macroIdentifiers, std::vector<bool>& conditionalStack);
-
-    void PreProcess(std::vector<std::string>& macroIdentifiers, std::vector<bool>& conditionalStack);
 
     bool SkipWhitespace();
     bool SkipComment();
