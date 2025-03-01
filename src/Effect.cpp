@@ -549,7 +549,7 @@ bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* sour
     ID3DXBuffer* shaderBuffer;
     ID3DXBuffer* errorBuffer;
     ID3DXConstantTable* ctable;
-    if(FAILED(D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, D3DXSHADER_PACKMATRIX_ROWMAJOR, &shaderBuffer, &errorBuffer, &ctable)))
+    if(FAILED(D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, 0, &shaderBuffer, &errorBuffer, &ctable)))
     {
         Log::Error("Failed to compile shader \"%s\".", function.name);
         if(errorBuffer->GetBufferSize())
