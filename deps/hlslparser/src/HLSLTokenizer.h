@@ -77,6 +77,8 @@ enum HLSLToken
     HLSLToken_Inline,
 
     // Input modifiers.
+    HLSLToken_RowMajor,
+    HLSLToken_ColumnMajor,
     HLSLToken_Uniform,
     HLSLToken_In,
     HLSLToken_Out,

@@ -80,6 +80,8 @@ static const char* _reservedWords[] =
         "const",
         "static",
         "inline",
+        "row_major",
+        "column_major",
         "uniform",
         "in",
         "out",

@@ -3481,6 +3481,16 @@ bool HLSLParser::AcceptTypeModifier(int& flags)
         //flags |= HLSLTypeFlag_Uniform;      // @@ Ignored. In HLSL all functions are inline.
         return true;
     }
+    else if(Accept(HLSLToken_RowMajor))
+    {
+        //flags |= HLSLTypeFlag_RowMajor;
+        return true;
+    }
+    else if(Accept(HLSLToken_ColumnMajor))
+    {
+        //flags |= HLSLTypeFlag_ColumnMajor;
+        return true;
+    }
     /*else if (Accept("in"))
     {
         flags |= HLSLTypeFlag_Input;
