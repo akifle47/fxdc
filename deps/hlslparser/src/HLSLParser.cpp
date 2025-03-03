@@ -512,6 +512,8 @@ const Intrinsic _intrinsic[] =
 
         Intrinsic( "cross", HLSLBaseType_Float3,  HLSLBaseType_Float3,  HLSLBaseType_Float3 ),
 
+        Intrinsic( "D3DCOLORtoUBYTE4", HLSLBaseType_Float4, HLSLBaseType_Int4),
+
         Intrinsic( "length", HLSLBaseType_Float,  HLSLBaseType_Float  ),
         Intrinsic( "length", HLSLBaseType_Float,  HLSLBaseType_Float2 ),
         Intrinsic( "length", HLSLBaseType_Float,  HLSLBaseType_Float3 ),
