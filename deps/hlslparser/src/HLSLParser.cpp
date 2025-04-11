@@ -570,6 +570,7 @@ const Intrinsic _intrinsic[] =
         INTRINSIC_FLOAT1_FUNCTION( "sign" ),
         INTRINSIC_FLOAT2_FUNCTION( "step" ),
         INTRINSIC_FLOAT2_FUNCTION( "reflect" ),
+        INTRINSIC_FLOAT2_FUNCTION( "distance" ),
 
 		INTRINSIC_FLOAT1_FUNCTION("isnan"),
 		INTRINSIC_FLOAT1_FUNCTION("isinf"),
