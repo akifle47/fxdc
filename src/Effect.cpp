@@ -549,12 +549,17 @@ bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* sour
     ID3DXBuffer* shaderBuffer;
     ID3DXBuffer* errorBuffer;
     ID3DXConstantTable* ctable;
-    if(FAILED(D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, 0, &shaderBuffer, &errorBuffer, &ctable)))
+    HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, 0, &shaderBuffer, &errorBuffer, &ctable);
+    if(FAILED(hr))
     {
         Log::Error("Failed to compile shader \"%s\".", function.name);
         if(errorBuffer->GetBufferSize())
             Log::Error((char*)errorBuffer->GetBufferPointer());
         return false;
+    }
+    else if(errorBuffer)
+    {
+        Log::Info("%s, %s", function.name, (char*)errorBuffer->GetBufferPointer());
     }
 
     mNameHash = rage::atStringHash(function.name);
