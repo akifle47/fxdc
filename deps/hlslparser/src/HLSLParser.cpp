@@ -1535,17 +1535,53 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
                     if(!Expect('('))
                         return false;
 
-                    const char* registerName;
-                    if(!AcceptIdentifier(registerName))
+                    const char* str;
+                    if(!AcceptIdentifier(str))
                         return false;
 
-                    if(registerName[0] != 'c' && registerName[0] != 's')
+                    if(str[0] != 'c' && str[0] != 's')
                     {
-                        m_tokenizer.Error("Invalid register type");
-                        return false;
+                        static const char* shaderProfiles[] = 
+                        {
+                            "vs", "ps", "hs", "gs", "ds", "cs", 
+                            "cs_4_0", "cs_4_1", "cs_5_0", "cs_5_1", "ds_5_0", "ds_5_1", "gs_4_0", "gs_4_1", "gs_5_0", "gs_5_1", "lib_4_0", "lib_4_1", "lib_4_0_level_9_1",
+                            "lib_4_0_level_9_1_vs_only", "lib_4_0_level_9_1_ps_only", "lib_4_0_level_9_3", "lib_4_0_level_9_3_vs_only", "lib_4_0_level_9_3_ps_only", "lib_5_0",
+                            "hs_5_0", "hs_5_1", "ps_2_0", "ps_2_a", "ps_2_b", "ps_2_sw", "ps_3_0", "ps_3_sw", "ps_4_0", "ps_4_0_level_9_0", "ps_4_0_level_9_1", "ps_4_0_level_9_3",
+                            "ps_4_1", "ps_5_0", "ps_5_1", "rootsig_1_0", "tx_1_0", "vs_1_1", "vs_2_0", "vs_2_a", "vs_2_sw", "vs_3_0", "vs_3_sw", "vs_4_0", "vs_4_0_level_9_0",
+                            "vs_4_0_level_9_1", "vs_4_0_level_9_3", "vs_4_1", "vs_5_0", "vs_5_1",
+                        };
+
+                        bool good = false;
+                        for(const char* profile : shaderProfiles)
+                        {
+                            if(strcmp(str, profile) == 0)
+                            {
+                                good = true;
+                                break;
+                            }
+
+                        }
+
+                        if(!good)
+                        {
+                            m_tokenizer.Error("Invalid shader profile.");
+                            return false;
+                        }
+
+                        if(!Expect(','))
+                            return false;
+
+                        if(!AcceptIdentifier(str))
+                            return false;
+
+                        if(str[0] != 'c' && str[0] != 's')
+                        {
+                            m_tokenizer.Error("Invalid register type");
+                            return false;
+                        }
                     }
 
-                    declaration->registerIndex = strtol(++registerName, nullptr, 10);
+                    declaration->registerIndex = strtol(++str, nullptr, 10);
 
                     if(!Expect(')'))
                         return false;
