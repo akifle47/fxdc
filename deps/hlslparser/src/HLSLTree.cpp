@@ -382,6 +382,9 @@ bool HLSLTree::GetExpressionValue(HLSLExpression * expression, int & value)
             case HLSLBinaryOp_Div:
                 value = value1 / value2;
                 return true;
+            case HLSLBinaryOp_Mod:
+                value = value1 % value2;
+                return true;
             case HLSLBinaryOp_Less:
                 value = value1 < value2;
                 return true;
@@ -613,6 +616,9 @@ int HLSLTree::GetExpressionValue(HLSLExpression * expression, float values[4])
                 return dim;
             case HLSLBinaryOp_Div:
                 for (int i = 0; i < dim; i++) values[i] = values1[i] / values2[i];
+                return dim;
+            case HLSLBinaryOp_Mod:
+                for(int i = 0; i < dim; i++) values[i] = fmod(values1[i], values2[i]);
                 return dim;
             default:
                 return 0;

@@ -105,7 +105,7 @@ static bool GetIsSymbol(char c)
     case '[': case ']':
     case '{': case '}':
     case '-': case '+':
-    case '*': case '/':
+    case '*': case '/': case '%':
     case '?':
     case '!':
     case ',':

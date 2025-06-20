@@ -936,6 +936,7 @@ static const char* GetBinaryOpName(HLSLBinaryOp binaryOp)
     case HLSLBinaryOp_Sub:          return "-";
     case HLSLBinaryOp_Mul:          return "*";
     case HLSLBinaryOp_Div:          return "/";
+    case HLSLBinaryOp_Mod:          return "%";
     case HLSLBinaryOp_Less:         return "<";
     case HLSLBinaryOp_Greater:      return ">";
     case HLSLBinaryOp_LessEqual:    return "<=";
@@ -2193,6 +2194,7 @@ bool HLSLParser::AcceptBinaryOperator(int priority, HLSLBinaryOp& binaryOp)
     case '-':                       binaryOp = HLSLBinaryOp_Sub;          break;
     case '*':                       binaryOp = HLSLBinaryOp_Mul;          break;
     case '/':                       binaryOp = HLSLBinaryOp_Div;          break;
+    case '%':                       binaryOp = HLSLBinaryOp_Mod;          break;
     case '<':                       binaryOp = HLSLBinaryOp_Less;         break;
     case '>':                       binaryOp = HLSLBinaryOp_Greater;      break;
     case HLSLToken_LessEqual:       binaryOp = HLSLBinaryOp_LessEqual;    break;
