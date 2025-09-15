@@ -1540,7 +1540,7 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
                     if(!AcceptIdentifier(str))
                         return false;
 
-                    if(str[0] != 'c' && str[0] != 's')
+                    if(str[0] != 'c' && str[0] != 's' && str[0] != 'b')
                     {
                         static const char* shaderProfiles[] = 
                         {
@@ -1575,7 +1575,7 @@ bool HLSLParser::ParseTopLevel(HLSLStatement*& statement)
                         if(!AcceptIdentifier(str))
                             return false;
 
-                        if(str[0] != 'c' && str[0] != 's')
+                        if(str[0] != 'c' && str[0] != 's' && str[0] != 'b')
                         {
                             m_tokenizer.Error("Invalid register type");
                             return false;
