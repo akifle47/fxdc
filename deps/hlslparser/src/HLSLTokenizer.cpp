@@ -578,7 +578,6 @@ bool HLSLTokenizer::ScanLineDirective()
         ++m_buffer;
 
         m_lineNumber = lineNumber;
-        m_fileName = m_lineDirectiveFileName;
 
         return true;
 
@@ -721,7 +720,7 @@ void HLSLTokenizer::Error(const char* format, ...)
     int result = vsnprintf(buffer, sizeof(buffer) - 1, format, args);
     va_end(args);
 
-    Log_Error("%s(%d) : %s\n", m_fileName, m_lineNumber, buffer);
+    Log_Error("%s(%d) : %s\n", m_lineDirectiveFileName, m_lineNumber, buffer);
 } 
 
 void HLSLTokenizer::GetTokenName(char buffer[s_maxIdentifier]) const
