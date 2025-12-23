@@ -7,100 +7,210 @@
 #include <Windows.h>
 #include <filesystem>
 #include <vector>
+#include <span>
+
+struct CmdOption
+{
+    CString Name;
+    CString Description;
+};
+CmdOption gCmdOptions[]
+{
+    {"/Out", "compile an effect to a specified file or folder"},
+
+    {"/Od",  " disable optimizations"},
+    {"/Zi",  " enable debugging information"},
+    {"/Zpr",  "pack matrices in row-major order"},
+    {"/Zpc",  "pack matrices in column-major order"},
+
+    {"/Gpp",  "force partial precision"},
+    {"/Gfa",  "avoid flow control constructs"},
+    {"/Gfp",  "prefer flow control constructs"},
+    {"/Gis",  "force IEE strictness"},
+};
 
 //returns whether it should quit
-bool ProcessInput(const char* input);
-bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut);
+bool ProcessArguments(std::span<CString> args);
+bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, DWORD shaderFlags);
 
 int main(int32_t argc, char** argv)
 {
     if(argc == 1)
     {
-        char input[256] {0};
-        wchar_t inputW[256] {0};
-        DWORD bytesRead = 0;
+        #ifdef _DEBUG
+            char input[256] {0};
+            wchar_t inputW[256] {0};
+            DWORD bytesRead = 0;
         
-        while(true)
-        {
-            printf("> ");
-
-            ZeroMemory(input, std::size(input));
-            ZeroMemory(inputW, std::size(inputW));
-
-            std::ignore = ReadConsoleW(GetStdHandle(STD_INPUT_HANDLE), inputW, 256, &bytesRead, nullptr);
-            WideCharToMultiByte(CP_UTF8, 0, inputW, -1, input, std::size(input), nullptr, nullptr);
-
-            if(ProcessInput(input))
+            while(true)
             {
-                return 0;
+                printf("> ");
+
+                ZeroMemory(input, std::size(input));
+                ZeroMemory(inputW, std::size(inputW));
+
+                std::ignore = ReadConsoleW(GetStdHandle(STD_INPUT_HANDLE), inputW, 256, &bytesRead, nullptr);
+                WideCharToMultiByte(CP_UTF8, 0, inputW, -1, input, std::size(input), nullptr, nullptr);
+
+                if(std::iscntrl(input[0]))
+                    return false;
+
+                if(memcmp(input, "-q", 2) == 0 || memcmp(input, "-quit", 5) == 0)
+                    return true;
+
+                std::vector<CString> args;
+                args.reserve(12);
+
+                for(uint32_t beg = 0; beg < strlen(input) - 1; beg++)
+                {
+                    if(input[beg] > ' ')
+                    {
+                        uint32_t end = beg;
+                        while(input[end] > ' ') 
+                            end++;
+
+                        args.emplace_back((end - beg) + 1);
+                        memcpy(args.back().Get(), &input[beg], end - beg);
+                        beg = end;
+                    }
+                }
+
+                if(ProcessArguments(args))
+                {
+                    return 0;
+                }
             }
-        }
+        #endif //_DEBUG
     }
-    else if(argc == 3)
+    else
     {
-        const char* inFile = argv[1];
-        const char* outDir = argv[2];
-        return (int)ProcessEffect(inFile, outDir) - 1;
+        std::vector<CString> args;
+        args.reserve(argc);
+
+        for(int32_t i = 1; i < argc; i++)
+        {
+            args.emplace_back(argv[i]);
+        }
+
+        ProcessArguments(args);
     }
 
     return 0;
 }
 
-bool ProcessInput(const char* input)
+void PrintHelp()
 {
-    if(std::iscntrl(input[0]))
-        return false;
+    printf("usage: fxdc <options> </Out> <in_file> <out_file> or [out_folder]\n\n");
 
-    if(memcmp(input, "-q", 2) == 0 || memcmp(input, "-quit", 5) == 0)
-        return true;
-
-    std::vector<CString> tokens;
-    tokens.reserve(4);
-
-    for(uint32_t beg = 0; beg < strlen(input) - 1; beg++)
+    for(size_t i = 0; i < std::size(gCmdOptions); i++)
     {
-        if(input[beg] > ' ')
-        {
-            uint32_t end = beg;
-            while(input[end] > ' ') end++;
+        const CmdOption& option = gCmdOptions[i];
 
-            tokens.emplace_back((end - beg) + 1);
-            memcpy(tokens.back().Get(), &input[beg], end - beg);
-            beg = end;
+        printf("   %s    %s", option.Name.Get(), option.Description.Get());
+
+        if(option.Name == "/Out" || option.Name == "/Zpc")
+            printf("\n\n");
+        else
+            printf("\n");
+    }
+}
+
+bool ProcessArguments(std::span<CString> args)
+{
+    CString inFile;
+    CString outFile;
+    DWORD shaderFlags = 0;
+    for(size_t i = 0; i < args.size(); i++)
+    {
+        const CString& arg = args[i];
+
+        for(size_t j = 0; j < std::size(gCmdOptions); j++)
+        {
+            CmdOption& option = gCmdOptions[j];
+            if(arg == option.Name)
+            {
+                if(arg == "/Out")
+                {
+                    if(i + 1 < args.size())
+                    {
+                        inFile = args[++i];
+                    }
+                    else
+                    {
+                        Log::Error("expected a file");
+                        PrintHelp();
+                        return false;
+                    }
+
+                    if(i + 1 < args.size())
+                    {
+                        outFile = args[++i];
+                    }
+                    else
+                    { 
+                        Log::Error("expected a file");
+                        PrintHelp();
+                        return false;
+                    }
+                }
+                else if(arg == "/Od")
+                {
+                    shaderFlags |= D3DXSHADER_SKIPOPTIMIZATION;
+                }
+                else if(arg == "/Zi")
+                {
+                    shaderFlags |= D3DXSHADER_DEBUG;
+                }
+                else if(arg == "/Zpr")
+                {
+                    shaderFlags |= D3DXSHADER_PACKMATRIX_ROWMAJOR;
+                }
+                else if(arg == "/Zpc")
+                {
+                    shaderFlags |= D3DXSHADER_PACKMATRIX_COLUMNMAJOR;
+                }
+                else if(arg == "/Gpp")
+                {
+                    shaderFlags |= D3DXSHADER_PARTIALPRECISION;
+                }
+                else if(arg == "/Gfa")
+                {
+                    shaderFlags |= D3DXSHADER_AVOID_FLOW_CONTROL;
+                }
+                else if(arg == "/Gfp")
+                {
+                    shaderFlags |= D3DXSHADER_PREFER_FLOW_CONTROL;
+                }
+                else if(arg == "/Gis")
+                {
+                    shaderFlags |= D3DXSHADER_IEEE_STRICTNESS;
+                }
+                else
+                {
+                    Log::Error("unknown or invalid option \"%s\"", arg.Get());
+                    PrintHelp();
+                    return false;
+                }
+            }
         }
     }
 
-    if(tokens.size() > 0)
+    if(!inFile.Get() || !outFile.Get())
     {
-        const char* inFile = tokens[0].Get();
-        const char* outDir = tokens.size() == 1 ? "" : tokens[1].Get();
-        ProcessEffect(inFile, outDir);
+        Log::Error("no files specified");
+        PrintHelp();
         return false;
     }
 
+    ProcessEffect(inFile.Get(), outFile.Get(), shaderFlags);
     return false;
 }
 
-bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut)
+bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, DWORD shaderFlags)
 {
-    if(!dirOut.empty())
+    if(!fileOut.has_filename())
     {
-        if(dirOut.has_filename())
-        {
-            //assume that a path with no file extension is a directory without a separator
-            if(dirOut.has_extension())
-                dirOut.concat("\\");
-            else
-                dirOut.replace_filename(dirOut.filename());
-        }
-        else
-        {
-            dirOut.concat(fileIn.filename().string());
-        }
-    }
-    else
-    {
-        dirOut = fileIn;
+        fileOut.concat(fileIn.filename().string());
     }
 
     if(fileIn.extension() == ".fxc")
@@ -110,8 +220,16 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut)
         {
             Effect effect(file);
 
-            dirOut.replace_extension(".fx");
-            return (bool)effect.SaveToFx(dirOut);
+            fileOut.replace_extension(".fx");
+            if(effect.SaveToFx(fileOut))
+            {
+                Log::Info("successfully unpacked effect \"%s\"", fileOut.string().c_str());
+                return false;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
     else if(fileIn.extension() == ".fx")
@@ -119,7 +237,7 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut)
         std::ifstream file(fileIn, std::ios::ate);
         if(!file.good() || !file.is_open())
         {
-            Log::Error("Unable to open file \"%s\"", fileIn.string().c_str());
+            Log::Error("unable to open file \"%s\"", fileIn.string().c_str());
             return false;
         }
 
@@ -138,9 +256,22 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path dirOut)
         }
         
         Effect effect;
-        if(!effect.LoadFromFx(parser))
+        if(!effect.LoadFromFx(parser, shaderFlags))
             return false;
-        return (bool)effect.Save(dirOut.replace_extension(".fxc"));
+
+        if(effect.Save(fileOut.replace_extension(".fxc")))
+        {
+            Log::Info("successfully compiled effect \"%s\"", fileOut.string().c_str());
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        Log::Error("\"%s\" is not an effect file.", fileIn.string().c_str());
     }
 
     return false;

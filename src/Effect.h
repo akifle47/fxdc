@@ -551,7 +551,7 @@ public:
     void Save(OFileStream& file, const class Effect& effect) const;
     void Load(class IFileStream& file);
     bool LoadFromAssembly(const HLSLDeclaration& declaration, const class Effect& effect);
-    bool LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect);
+    bool LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect, DWORD shaderFlags);
 
     CString GetDisassembly() const;
 
@@ -573,7 +573,7 @@ public:
 
     bool Save(const std::filesystem::path& filePath) const;
     bool SaveToFx(const std::filesystem::path& filePath) const;
-    bool LoadFromFx(const HLSLParser& parser);
+    bool LoadFromFx(const HLSLParser& parser, DWORD shaderFlags);
 
     const Parameter* FindParameterByName(const char* name) const;
     const Parameter* FindParameterByHash(uint32_t hash) const;

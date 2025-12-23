@@ -222,7 +222,7 @@ bool Effect::SaveToFx(const std::filesystem::path& filePath) const
     return true;
 }
 
-bool Effect::LoadFromFx(const HLSLParser& parser)
+bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags)
 {
     mTechniques = {};
     mParameters = {};
@@ -234,9 +234,8 @@ bool Effect::LoadFromFx(const HLSLParser& parser)
 
     ID3DXBuffer* shaderBuffer = nullptr;
     ID3DXBuffer* errorBuffer = nullptr;
-    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", 0, &shaderBuffer, &errorBuffer, nullptr)))
     //validate the shader with fxc first as it can give better error messages
-    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", flags, &shaderBuffer, &errorBuffer, nullptr)))
+    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", shaderFlags, &shaderBuffer, &errorBuffer, nullptr)))
     {
         if(errorBuffer && errorBuffer->GetBufferSize())
             Log::Error((char*)errorBuffer->GetBufferPointer());
@@ -291,12 +290,12 @@ bool Effect::LoadFromFx(const HLSLParser& parser)
     {
         if(function.first == 0)
         {
-            if(!mVertexPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "vs_3_0", *this))
+            if(!mVertexPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "vs_3_0", *this, shaderFlags))
                 return false;
         }
         else
         {
-            if(!mPixelPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "ps_3_0",  *this))
+            if(!mPixelPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "ps_3_0",  *this, shaderFlags))
                 return false;
         }
     }
@@ -549,13 +548,12 @@ bool GpuProgram::LoadFromAssembly(const HLSLDeclaration& declaration, const clas
     return true;
 }
 
-bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect)
+bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect, DWORD shaderFlags)
 {
     ID3DXBuffer* shaderBuffer = nullptr;
     ID3DXBuffer* errorBuffer = nullptr;
     ID3DXConstantTable* ctable;
-    HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, 0, &shaderBuffer, &errorBuffer, &ctable);
-    HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, flags, &shaderBuffer, &errorBuffer, &ctable);
+    HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, shaderFlags, &shaderBuffer, &errorBuffer, &ctable);
     if(FAILED(hr))
     {
         if(errorBuffer && errorBuffer->GetBufferSize())
