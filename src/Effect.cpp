@@ -232,12 +232,16 @@ bool Effect::LoadFromFx(const HLSLParser& parser)
 
     mFilePath = parser.m_tokenizer.GetFileName();
 
-    ID3DXBuffer* shaderBuffer;
-    ID3DXBuffer* errorBuffer;
+    ID3DXBuffer* shaderBuffer = nullptr;
+    ID3DXBuffer* errorBuffer = nullptr;
     if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", 0, &shaderBuffer, &errorBuffer, nullptr)))
+    //validate the shader with fxc first as it can give better error messages
+    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", flags, &shaderBuffer, &errorBuffer, nullptr)))
     {
-        if(errorBuffer)
+        if(errorBuffer && errorBuffer->GetBufferSize())
             Log::Error((char*)errorBuffer->GetBufferPointer());
+        else
+            Log::Error("Failed to compile effect \"%s\"", mFilePath);
         return false;
     }
 
@@ -494,13 +498,14 @@ bool GpuProgram::LoadFromAssembly(const HLSLDeclaration& declaration, const clas
         return true;
 
     const HLSLShaderObjectExpression& expr = (HLSLShaderObjectExpression&)*declaration.assignment;
-    ID3DXBuffer* shaderBuffer;
-    ID3DXBuffer* errorBuffer;
+    ID3DXBuffer* shaderBuffer = nullptr;
+    ID3DXBuffer* errorBuffer = nullptr;
     if(FAILED(D3DXAssembleShader(expr.source, strlen(expr.source), nullptr, nullptr, 0, &shaderBuffer, &errorBuffer)))
     {
-        Log::Error("Failed to compile shader \"%s\".", declaration.name);
-        if(errorBuffer->GetBufferSize())
+        if(errorBuffer && errorBuffer->GetBufferSize())
             Log::Error((char*)errorBuffer->GetBufferPointer());
+        else
+            Log::Error("Failed to compile shader \"%s\"", declaration.name);
         return false;
     }
 
@@ -546,15 +551,17 @@ bool GpuProgram::LoadFromAssembly(const HLSLDeclaration& declaration, const clas
 
 bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect)
 {
-    ID3DXBuffer* shaderBuffer;
-    ID3DXBuffer* errorBuffer;
+    ID3DXBuffer* shaderBuffer = nullptr;
+    ID3DXBuffer* errorBuffer = nullptr;
     ID3DXConstantTable* ctable;
     HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, 0, &shaderBuffer, &errorBuffer, &ctable);
+    HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, flags, &shaderBuffer, &errorBuffer, &ctable);
     if(FAILED(hr))
     {
-        Log::Error("Failed to compile shader \"%s\".", function.name);
-        if(errorBuffer->GetBufferSize())
+        if(errorBuffer && errorBuffer->GetBufferSize())
             Log::Error((char*)errorBuffer->GetBufferPointer());
+        else
+            Log::Error("Failed to compile effect \"%s\"", function.name);
         return false;
     }
     else if(errorBuffer)
