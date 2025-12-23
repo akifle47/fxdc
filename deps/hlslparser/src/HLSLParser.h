@@ -18,6 +18,7 @@
 #include "HLSLTree.h"
 
 class Effect;
+struct _D3DXMACRO;
 
 namespace M4
 {
@@ -29,7 +30,7 @@ class HLSLParser
     friend class Effect;
 public:
 
-    HLSLParser(Allocator* allocator, const char* fileName, const char* buffer, size_t length);
+    HLSLParser(Allocator* allocator, const char* fileName, const char* buffer, size_t length, const _D3DXMACRO* macros);
 
     bool Parse(HLSLTree* tree);
 

@@ -16,22 +16,24 @@ struct CmdOption
 };
 CmdOption gCmdOptions[]
 {
-    {"/Out", "compile an effect to a specified file or folder"},
+    {"/Out", "</Out> <in_file> <out_file or out_folder>        compile an effect to a specified file or folder"},
 
-    {"/Od",  " disable optimizations"},
-    {"/Zi",  " enable debugging information"},
-    {"/Zpr",  "pack matrices in row-major order"},
-    {"/Zpc",  "pack matrices in column-major order"},
+    {"/Od",  "/Od                                              disable optimizations"},
+    {"/Zi",  "/Zi                                              enable debugging information"},
+    {"/Zpr", "/Zpr                                             pack matrices in row-major order"},
+    {"/Zpc", "/Zpc                                             pack matrices in column-major order"},
+                                                    
+    {"/Gpp", "/Gpp                                             force partial precision"},
+    {"/Gfa", "/Gfa                                             avoid flow control constructs"},
+    {"/Gfp", "/Gfp                                             prefer flow control constructs"},
+    {"/Gis", "/Gis                                             force IEE strictness"},
 
-    {"/Gpp",  "force partial precision"},
-    {"/Gfa",  "avoid flow control constructs"},
-    {"/Gfp",  "prefer flow control constructs"},
-    {"/Gis",  "force IEE strictness"},
+    {"/D",  "/D<name> <definition>                             define a macro"},
 };
 
 //returns whether it should quit
 bool ProcessArguments(std::span<CString> args);
-bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, DWORD shaderFlags);
+bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, DWORD shaderFlags, const D3DXMACRO* macros);
 
 int main(int32_t argc, char** argv)
 {
@@ -100,7 +102,7 @@ int main(int32_t argc, char** argv)
 
 void PrintHelp()
 {
-    printf("usage: fxdc <options> </Out> <in_file> <out_file> or [out_folder]\n\n");
+    printf("usage: fxdc <options> </Out> <in_file> <out_file or out_folder>\n\n");
 
     for(size_t i = 0; i < std::size(gCmdOptions); i++)
     {
@@ -108,7 +110,7 @@ void PrintHelp()
 
         printf("   %s    %s", option.Name.Get(), option.Description.Get());
 
-        if(option.Name == "/Out" || option.Name == "/Zpc")
+        if(option.Name == "/Out" || option.Name == "/Zpc" || option.Name == "/Gis")
             printf("\n\n");
         else
             printf("\n");
@@ -120,6 +122,7 @@ bool ProcessArguments(std::span<CString> args)
     CString inFile;
     CString outFile;
     DWORD shaderFlags = 0;
+    std::vector<D3DXMACRO> macros;
     for(size_t i = 0; i < args.size(); i++)
     {
         const CString& arg = args[i];
@@ -149,6 +152,32 @@ bool ProcessArguments(std::span<CString> args)
                     else
                     { 
                         Log::Error("expected a file");
+                        PrintHelp();
+                        return false;
+                    }
+                }
+                else if(arg == "/D")
+                {
+                    D3DXMACRO macro;
+                    if(i + 1 < args.size())
+                    {
+                        macro.Name = args[++i].Get();
+                    }
+                    else
+                    {
+                        Log::Error("expected macro identifier");
+                        PrintHelp();
+                        return false;
+                    }
+
+                    if(i + 1 < args.size())
+                    {
+                        macro.Definition = args[++i].Get();
+                        macros.push_back(macro);
+                    }
+                    else
+                    {
+                        Log::Error("expected macro defintion");
                         PrintHelp();
                         return false;
                     }
@@ -202,11 +231,14 @@ bool ProcessArguments(std::span<CString> args)
         return false;
     }
 
-    ProcessEffect(inFile.Get(), outFile.Get(), shaderFlags);
+    //last one has to be null
+    macros.emplace_back(nullptr, nullptr);
+
+    ProcessEffect(inFile.Get(), outFile.Get(), shaderFlags, macros.data());
     return false;
 }
 
-bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, DWORD shaderFlags)
+bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, DWORD shaderFlags, const D3DXMACRO* macros)
 {
     if(!fileOut.has_filename())
     {
@@ -248,7 +280,7 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, 
         file.read(source.Get(), fileSize);
 
         M4::Allocator allocator;
-        M4::HLSLParser parser(&allocator, cFileName.Get(), source.Get(), fileSize);
+        M4::HLSLParser parser(&allocator, cFileName.Get(), source.Get(), fileSize, macros);
         M4::HLSLTree tree(&allocator);
         if(!parser.Parse(&tree))
         {
@@ -256,7 +288,7 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, 
         }
         
         Effect effect;
-        if(!effect.LoadFromFx(parser, shaderFlags))
+        if(!effect.LoadFromFx(parser, shaderFlags, macros))
             return false;
 
         if(effect.Save(fileOut.replace_extension(".fxc")))

@@ -1175,8 +1175,8 @@ static bool GetBinaryOpResultType(HLSLBinaryOp binaryOp, const HLSLType& type1, 
 
 }
 
-HLSLParser::HLSLParser(Allocator* allocator, const char* fileName, const char* buffer, size_t length) : 
-    m_tokenizer(fileName, buffer, length),
+HLSLParser::HLSLParser(Allocator* allocator, const char* fileName, const char* buffer, size_t length, const _D3DXMACRO* macros) :
+    m_tokenizer(fileName, buffer, length, macros),
     m_userTypes(allocator),
     m_variables(allocator),
     m_functions(allocator),

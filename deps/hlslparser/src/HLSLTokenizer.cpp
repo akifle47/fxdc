@@ -125,11 +125,11 @@ static bool GetIsNumberSeparator(char c)
     return c == 0 || isspace(c) || GetIsSymbol(c);
 }
 
-HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t length)
+HLSLTokenizer::HLSLTokenizer(const char* fileName, const char* buffer, size_t length, const _D3DXMACRO* macros)
 {
     ID3DXBuffer* sourceBuffer;
     ID3DXBuffer* errorBuffer;
-    D3DXPreprocessShaderFromFileA(fileName, nullptr, nullptr, &sourceBuffer, &errorBuffer);
+    D3DXPreprocessShaderFromFileA(fileName, macros, nullptr, &sourceBuffer, &errorBuffer);
     if(errorBuffer)
     {
         Log_Error((char*)errorBuffer->GetBufferPointer());

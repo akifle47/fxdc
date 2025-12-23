@@ -1,6 +1,8 @@
 #ifndef HLSL_TOKENIZER_H
 #define HLSL_TOKENIZER_H
 
+struct _D3DXMACRO;
+
 namespace M4
 {
 
@@ -126,7 +128,7 @@ public:
     static const int s_maxIdentifier = 255 + 1;
 
     /** The file name is only used for error reporting. */
-    HLSLTokenizer(const char* fileName, const char* buffer, size_t length);
+    HLSLTokenizer(const char* fileName, const char* buffer, size_t length, const _D3DXMACRO* macros);
     ~HLSLTokenizer();
 
     /** Advances to the next token in the stream. */

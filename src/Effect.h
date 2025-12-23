@@ -573,7 +573,7 @@ public:
 
     bool Save(const std::filesystem::path& filePath) const;
     bool SaveToFx(const std::filesystem::path& filePath) const;
-    bool LoadFromFx(const HLSLParser& parser, DWORD shaderFlags);
+    bool LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXMACRO* defines);
 
     const Parameter* FindParameterByName(const char* name) const;
     const Parameter* FindParameterByHash(uint32_t hash) const;

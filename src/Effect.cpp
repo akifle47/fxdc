@@ -222,7 +222,7 @@ bool Effect::SaveToFx(const std::filesystem::path& filePath) const
     return true;
 }
 
-bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags)
+bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXMACRO* macros)
 {
     mTechniques = {};
     mParameters = {};
@@ -235,7 +235,7 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags)
     ID3DXBuffer* shaderBuffer = nullptr;
     ID3DXBuffer* errorBuffer = nullptr;
     //validate the shader with fxc first as it can give better error messages
-    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), nullptr, nullptr, "", "fx_2_0", shaderFlags, &shaderBuffer, &errorBuffer, nullptr)))
+    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), macros, nullptr, "", "fx_2_0", shaderFlags, &shaderBuffer, &errorBuffer, nullptr)))
     {
         if(errorBuffer && errorBuffer->GetBufferSize())
             Log::Error((char*)errorBuffer->GetBufferPointer());
