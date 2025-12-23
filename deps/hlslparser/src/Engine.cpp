@@ -1,10 +1,11 @@
 
+#define WIN32_LEAN_AND_MEAN
 #include "Engine.h"
 
 #include <stdio.h>  // vsnprintf
 #include <string.h> // strcmp, strcasecmp
 #include <stdlib.h>	// strtod, strtol
-
+#include <windows.h>
 
 namespace M4 {
 
@@ -83,6 +84,8 @@ void Log_Error(const char * format, ...) {
 }
 
 void Log_ErrorArgList(const char * format, va_list args) {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED);
+
 #if 1 // @@ Don't we need to do this?
     va_list tmp;
     va_copy(tmp, args);
@@ -91,6 +94,8 @@ void Log_ErrorArgList(const char * format, va_list args) {
 #else
     vprintf( format, args );
 #endif
+
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 }
 
 

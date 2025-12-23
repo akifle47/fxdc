@@ -566,7 +566,9 @@ bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* sour
     }
     else if(errorBuffer)
     {
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN);
         Log::Info("%s, %s", function.name, (char*)errorBuffer->GetBufferPointer());
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
     }
 
     mNameHash = rage::atStringHash(function.name);
