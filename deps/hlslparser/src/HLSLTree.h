@@ -27,6 +27,7 @@ enum HLSLNodeType
     HLSLNodeType_ContinueStatement,
     HLSLNodeType_IfStatement,
     HLSLNodeType_ForStatement,
+    HLSLNodeType_WhileStatement,
     HLSLNodeType_BlockStatement,
     HLSLNodeType_UnaryExpression,
     HLSLNodeType_BinaryExpression,
@@ -617,6 +618,18 @@ struct HLSLForStatement : public HLSLStatement
     HLSLExpression*     condition;
     HLSLExpression*     increment;
     HLSLStatement*      statement;
+};
+
+struct HLSLWhileStatement : public HLSLStatement
+{
+    static const HLSLNodeType s_type = HLSLNodeType_WhileStatement;
+    HLSLWhileStatement()
+    {
+        condition = NULL;
+        statement = NULL;
+    }
+    HLSLExpression* condition;
+    HLSLStatement* statement;
 };
 
 struct HLSLBlockStatement : public HLSLStatement

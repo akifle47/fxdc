@@ -1822,6 +1822,29 @@ bool HLSLParser::ParseStatement(HLSLStatement*& statement, const HLSLType& retur
         return true;
     }
 
+    if(Accept(HLSLToken_While)) 
+    {
+        HLSLWhileStatement* whileStatement = m_tree->AddNode<HLSLWhileStatement>(fileName, line);
+        whileStatement->attributes = attributes;
+        if(!Expect('('))
+        {
+            return false;
+        }
+        BeginScope();
+        ParseExpression(whileStatement->condition);
+        if(!Expect(')'))
+        {
+            return false;
+        }
+        statement = whileStatement;
+        if(!ParseStatementOrBlock(whileStatement->statement, returnType))
+        {
+            return false;
+        }
+        EndScope();
+        return true;
+    }
+    
     if (attributes != NULL)
     {
         // @@ Error. Unexpected attribute. We only support attributes associated to if and for statements.
