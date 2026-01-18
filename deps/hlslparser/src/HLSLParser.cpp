@@ -558,6 +558,7 @@ const Intrinsic _intrinsic[] =
         INTRINSIC_FLOAT1_FUNCTION( "sin" ),
         INTRINSIC_FLOAT1_FUNCTION( "sqrt" ),
         INTRINSIC_FLOAT1_FUNCTION( "rsqrt" ),
+        INTRINSIC_FLOAT1_FUNCTION( "round" ),
         INTRINSIC_FLOAT1_FUNCTION( "rcp" ),
         INTRINSIC_FLOAT1_FUNCTION( "exp" ),
         INTRINSIC_FLOAT1_FUNCTION( "exp2" ),
