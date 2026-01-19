@@ -292,6 +292,8 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, 
             return false;
         }
         
+        LoadLibrary(L"D3DCompiler_43.dll");
+
         Effect effect;
         if(!effect.LoadFromFx(parser, shaderFlags, macros))
             return false;
@@ -312,6 +314,6 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, 
     {
         Log::Error("\"%s\" is not an effect file.", fileIn.string().c_str());
     }
-
+    
     return false;
 }
