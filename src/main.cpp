@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <vector>
 #include <span>
+#include <chrono>
 
 struct CmdOption
 {
@@ -240,6 +241,8 @@ bool ProcessArguments(std::span<CString> args)
 
 bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, DWORD shaderFlags, const D3DXMACRO* macros)
 {
+    auto t1 = std::chrono::high_resolution_clock::now();
+
     if(!fileOut.has_filename())
     {
         fileOut.concat(fileIn.filename().string());
@@ -255,7 +258,9 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, 
             fileOut.replace_extension(".fx");
             if(effect.SaveToFx(fileOut))
             {
-                Log::Info("successfully unpacked effect \"%s\"", fileOut.string().c_str());
+                auto t2 = std::chrono::high_resolution_clock::now();
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+                Log::Info("successfully unpacked effect \"%s\" (took %lldms)", fileOut.string().c_str(), ms.count());
                 return false;
             }
             else
@@ -293,7 +298,9 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, 
 
         if(effect.Save(fileOut.replace_extension(".fxc")))
         {
-            Log::Info("successfully compiled effect \"%s\"", fileOut.string().c_str());
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+            Log::Info("successfully compiled effect \"%s\" (took %lldms)", fileOut.string().c_str(), ms.count());
             return true;
         }
         else
