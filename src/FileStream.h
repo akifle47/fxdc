@@ -2,6 +2,7 @@
 #include "CString.h"
 
 #include <fstream>
+#include <sstream>
 
 //very simple wrapper for std::fstream in binary mode
 
@@ -16,11 +17,7 @@ class IFileStream
 {
 public:
     IFileStream(const char* filePath);
-
     ~IFileStream() = default;
-
-    bool Open();
-    void Close();
 
     const char* GetFilePath();
     CString GetFileName();
@@ -45,11 +42,7 @@ class OFileStream
 {
 public:
     OFileStream(const char* filePath);
-
-    ~OFileStream() = default;
-
-    bool Open();
-    void Close();
+    ~OFileStream();
 
     const char* GetFilePath();
     CString GetFileName();
@@ -65,4 +58,5 @@ public:
 private:
     CString mPath;
     std::ofstream mFile;
+    std::ostringstream mFileBuffer;
 };

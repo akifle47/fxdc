@@ -81,8 +81,6 @@ Effect::Effect(IFileStream& file)
 bool Effect::Save(const std::filesystem::path& filePath) const
 {
     OFileStream file(filePath.string().c_str());
-    if(!file.Open())
-        return false;
 
     file.WriteDword(&Effect::MAGIC);
 

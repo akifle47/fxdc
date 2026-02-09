@@ -12,29 +12,18 @@ IFileStream::IFileStream(const char* filePath) : mSize(0)
         if(*c == '/')
             *c = '\\';
     }
-}
 
-bool IFileStream::Open()
-{
-    if(mFile.is_open())
-        return true;
+    if(!mFile.is_open())
+        mFile = std::ifstream(mPath.Get(), std::ios::binary | std::ios::ate);
 
-    mFile = std::ifstream(mPath.Get(), std::ios::binary | std::ios::ate);
     if(!mFile.good() || !mFile.is_open())
     {
         Log::Error("Unable to open file \"%s\"", mPath.Get());
-        return false;
+        return;
     }
 
     mSize = (size_t)mFile.tellg();
     mFile.seekg(0);
-
-    return true;
-}
-
-void IFileStream::Close()
-{
-    mFile.close();
 }
 
 const char* IFileStream::GetFilePath()
@@ -123,26 +112,23 @@ OFileStream::OFileStream(const char* filePath)
         if(*c == '/')
             *c = '\\';
     }
+
+    mFileBuffer = std::ostringstream(std::ios::binary);
 }
 
-bool OFileStream::Open()
+OFileStream::~OFileStream()
 {
-    if(mFile.is_open())
-        return true;
+    if(!mFile.is_open())
+        mFile = std::ofstream(mPath.Get(), std::ios::binary);
 
-    mFile = std::ofstream(mPath.Get(), std::ios::binary);
     if(!mFile.good() || !mFile.is_open())
     {
         Log::Error("Unable to open file \"%s\"", mPath.Get());
-        return false;
+        return;
     }
 
-    return true;
-}
-
-void OFileStream::Close()
-{
-    mFile.close();
+    std::string data = std::move(mFileBuffer).str();
+    mFile.write(data.data(), data.size());
 }
 
 const char* OFileStream::GetFilePath()
@@ -190,15 +176,13 @@ void OFileStream::Seek(std::streamoff offset, eSeekDir dir)
     else if(dir == eSeekDir::END)
         dirStd = std::ios::end;
 
-    mFile.seekp(offset, dirStd);
+    mFileBuffer.seekp(offset, dirStd);
 }
 
 inline bool OFileStream::Write(const void* buffer, std::streamsize count)
 {
-    assert(mFile.is_open());
-
-    mFile.write((char*)buffer, count);
-    return mFile.rdstate() & std::ios::badbit;
+    mFileBuffer.write((char*)buffer, count);
+    return mFileBuffer.rdstate() & std::ios::badbit;
 }
 
 bool OFileStream::WriteByte(const void* buffer)

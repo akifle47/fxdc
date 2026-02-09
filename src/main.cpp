@@ -251,22 +251,19 @@ bool ProcessEffect(std::filesystem::path fileIn, std::filesystem::path fileOut, 
     if(fileIn.extension() == ".fxc")
     {
         IFileStream file(fileIn.string().c_str());
-        if(file.Open())
-        {
-            Effect effect(file);
+        Effect effect(file);
 
-            fileOut.replace_extension(".fx");
-            if(effect.SaveToFx(fileOut))
-            {
-                auto t2 = std::chrono::high_resolution_clock::now();
-                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-                Log::Info("successfully unpacked effect \"%s\" (took %lldms)", fileOut.string().c_str(), ms.count());
-                return false;
-            }
-            else
-            {
-                return false;
-            }
+        fileOut.replace_extension(".fx");
+        if(effect.SaveToFx(fileOut))
+        {
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+            Log::Info("successfully unpacked effect \"%s\" (took %lldms)", fileOut.string().c_str(), ms.count());
+            return false;
+        }
+        else
+        {
+            return false;
         }
     }
     else if(fileIn.extension() == ".fx")
