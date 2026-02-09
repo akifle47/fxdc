@@ -551,7 +551,7 @@ public:
     void Save(OFileStream& file, const class Effect& effect) const;
     void Load(class IFileStream& file);
     bool LoadFromAssembly(const HLSLDeclaration& declaration, const class Effect& effect);
-    bool LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect, DWORD shaderFlags);
+    bool LoadFromFunction(const HLSLFunction& function, ID3DXBuffer* shaderBuffer, ID3DXConstantTable* ctable, const class Effect& effect);
 
     CString GetDisassembly() const;
 

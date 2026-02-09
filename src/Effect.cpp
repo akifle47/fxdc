@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <cassert>
 #include <set>
+#include <future>
 
 static constexpr uint8_t sParamTypeSizeFactor[] {0, 1, 1, 1, 1, 1, 0, 1, 3, 4, 0, 0, 0, 0, 0, 0};
 
@@ -262,8 +263,17 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
         }
     }
 
+    enum class ShaderType : uint32_t {VERTEX, PIXEL};
+    struct ShaderInfo
+    {
+        ShaderType Type;
+        const HLSLFunction* Function;
+        ID3DXBuffer* Buffer;
+        ID3DXConstantTable* ConstantTable;
+    };
+
     //find all shader functions
-    std::set<std::pair<uint32_t, const HLSLFunction*>> shaderFunctions;
+    std::set<std::pair<ShaderType, const HLSLFunction*>> shaderFunctions;
     for(int i = 0; i < parser.m_techniques.GetSize(); i++)
     {
         for(auto pass = parser.m_techniques[i]->passes; pass; pass = pass->nextPass)
@@ -274,30 +284,100 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
                 {
                     const HLSLFunction* function = parser.FindFunction(assignement->sValue);
                     if(function)
-                        shaderFunctions.emplace(0, function);
+                        shaderFunctions.emplace(ShaderType::VERTEX, function);
                 }
                 else if(strcmp(assignement->stateName, "PixelShader") == 0)
                 {
                     const HLSLFunction* function = parser.FindFunction(assignement->sValue);
                     if(function)
-                        shaderFunctions.emplace(1, function);
+                        shaderFunctions.emplace(ShaderType::PIXEL, function);
                 }
             }
         }
     }
 
-    for(const auto& function : shaderFunctions)
+    std::mutex mutex;
+    auto it = shaderFunctions.begin();
+    rage::atArray<ShaderInfo> compiledShaders;
+    rage::atArray<std::thread> compilationThreads {(uint16_t)std::thread::hardware_concurrency()};
+    const char* source = parser.m_tokenizer.GetPreProcessedSource();
+    for(uint16_t i = 0; i < compilationThreads.GetCapacity(); i++)
     {
-        if(function.first == 0)
+        compilationThreads.Append() = std::thread([&]
         {
-            if(!mVertexPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "vs_3_0", *this, shaderFlags))
+            while(true)
+            {
+                std::pair<ShaderType, const HLSLFunction*> shaderFunction;
+                {
+                    std::lock_guard guard{mutex};
+                    if(it == shaderFunctions.end())
+                        return false;
+                    shaderFunction = *it++;
+                }
+
+                char profile[8] {};
+                if(shaderFunction.first == ShaderType::VERTEX)
+                    strcpy(profile, "vs_3_0");
+                else //if(shaderFunction.first == ShaderType::PIXEL)
+                    strcpy(profile, "ps_3_0");
+
+                const HLSLFunction& function = *shaderFunction.second;
+
+                ID3DXBuffer* shaderBuffer = nullptr;
+                ID3DXConstantTable* ctable = nullptr;
+                ID3DXBuffer* errorBuffer = nullptr;
+                HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, shaderFlags, &shaderBuffer, &errorBuffer, &ctable);
+                if(FAILED(hr))
+                {
+                    if(errorBuffer && errorBuffer->GetBufferSize())
+                        Log::Error((char*)errorBuffer->GetBufferPointer());
+                    else
+                        Log::Error("Failed to compile effect \"%s\"", function.name);
+                    return false;
+                }
+                else if(errorBuffer)
+                {
+                    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN);
+                    Log::Info("%s, %s", function.name, (char*)errorBuffer->GetBufferPointer());
+                    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+                }
+
+                {
+                    std::lock_guard guard{mutex};
+                    compiledShaders.Grow(16) = 
+                    {
+                        .Type = shaderFunction.first,
+                        .Function = &function,
+                        .Buffer = shaderBuffer,
+                        .ConstantTable = ctable
+                    };
+                }
+            }
+        });
+    }
+
+    for(auto& thread : compilationThreads)
+    {
+        if(thread.joinable())
+            thread.join();
+    }
+
+    for(const auto& shader : compiledShaders)
+    {
+        //todo: thread error checking
+        if(shader.Type == ShaderType::VERTEX)
+        {
+            if(!mVertexPrograms.Grow(16).LoadFromFunction(*shader.Function, shader.Buffer, shader.ConstantTable, *this))
                 return false;
         }
-        else
+        else //if(shader.Type == ShaderType::PIXEL)
         {
-            if(!mPixelPrograms.Grow(16).LoadFromFunction(*function.second, parser.m_tokenizer.GetPreProcessedSource(), "ps_3_0",  *this, shaderFlags))
+            if(!mPixelPrograms.Grow(16).LoadFromFunction(*shader.Function, shader.Buffer, shader.ConstantTable, *this))
                 return false;
         }
+
+        shader.Buffer->Release();
+        shader.ConstantTable->Release();
     }
     for(int i = 0; i < parser.m_variables.GetSize(); i++)
     {
@@ -548,27 +628,8 @@ bool GpuProgram::LoadFromAssembly(const HLSLDeclaration& declaration, const clas
     return true;
 }
 
-bool GpuProgram::LoadFromFunction(const HLSLFunction& function, const char* source, const char* profile, const class Effect& effect, DWORD shaderFlags)
+bool GpuProgram::LoadFromFunction(const HLSLFunction& function, ID3DXBuffer* shaderBuffer, ID3DXConstantTable* ctable, const class Effect& effect)
 {
-    ID3DXBuffer* shaderBuffer = nullptr;
-    ID3DXBuffer* errorBuffer = nullptr;
-    ID3DXConstantTable* ctable;
-    HRESULT hr = D3DXCompileShader(source, strlen(source), nullptr, nullptr, function.name, profile, shaderFlags, &shaderBuffer, &errorBuffer, &ctable);
-    if(FAILED(hr))
-    {
-        if(errorBuffer && errorBuffer->GetBufferSize())
-            Log::Error((char*)errorBuffer->GetBufferPointer());
-        else
-            Log::Error("Failed to compile effect \"%s\"", function.name);
-        return false;
-    }
-    else if(errorBuffer)
-    {
-        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN);
-        Log::Info("%s, %s", function.name, (char*)errorBuffer->GetBufferPointer());
-        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
-    }
-
     mNameHash = rage::atStringHash(function.name);
     mShaderData = {shaderBuffer->GetBufferSize()};
     memcpy(&mShaderData[0], shaderBuffer->GetBufferPointer(), (size_t)shaderBuffer->GetBufferSize());
