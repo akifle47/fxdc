@@ -9,6 +9,8 @@
 #include <vector>
 #include <span>
 #include <chrono>
+#include <thread>
+#include <mutex>
 
 struct CmdOption
 {
@@ -17,19 +19,20 @@ struct CmdOption
 };
 CmdOption gCmdOptions[]
 {
-    {"/Out", "</Out> <in_file> <out_file or out_folder>        compile an effect to a specified file or folder"},
+    {"/Out", "     <in_file> <out_file or out_folder>        compile or unpack effect <in_file> to a specified file or folder"},
+    {"/OutBatch", "<in_folder> <out_folder>                  compile all effects in <in_folder> to <out_folder>"},
 
-    {"/Od",  "/Od                                              disable optimizations"},
-    {"/Zi",  "/Zi                                              enable debugging information"},
-    {"/Zpr", "/Zpr                                             pack matrices in row-major order"},
-    {"/Zpc", "/Zpc                                             pack matrices in column-major order"},
-                                                    
-    {"/Gpp", "/Gpp                                             force partial precision"},
-    {"/Gfa", "/Gfa                                             avoid flow control constructs"},
-    {"/Gfp", "/Gfp                                             prefer flow control constructs"},
-    {"/Gis", "/Gis                                             force IEE strictness"},
+    {"/Od", "                                                disable optimizations"},
+    {"/Zi", "                                                enable debugging information"},
+    {"/Zpr", "                                               pack matrices in row-major order"},
+    {"/Zpc", "                                               pack matrices in column-major order"},
 
-    {"/D",  "/D<name> <definition>                             define a macro"},
+    {"/Gpp", "                                               force partial precision"},
+    {"/Gfa", "                                               avoid flow control constructs"},
+    {"/Gfp", "                                               prefer flow control constructs"},
+    {"/Gis", "                                               force IEE strictness"},
+
+    {"/D", "<name> <definition>                              define a macro"},
 };
 
 //returns whether it should quit
@@ -103,15 +106,15 @@ int main(int32_t argc, char** argv)
 
 void PrintHelp()
 {
-    printf("usage: fxdc <options> </Out> <in_file> <out_file or out_folder>\n\n");
+    printf("usage: fxdc <options> </Out or /OutBatch> <in_file> <out_file or out_folder>\n\n");
 
     for(size_t i = 0; i < std::size(gCmdOptions); i++)
     {
         const CmdOption& option = gCmdOptions[i];
 
-        printf("   %s    %s", option.Name.Get(), option.Description.Get());
+        printf("   %s  %s", option.Name.Get(), option.Description.Get());
 
-        if(option.Name == "/Out" || option.Name == "/Zpc" || option.Name == "/Gis")
+        if(option.Name == "/OutBatch" || option.Name == "/Zpc" || option.Name == "/Gis")
             printf("\n\n");
         else
             printf("\n");
@@ -120,8 +123,8 @@ void PrintHelp()
 
 bool ProcessArguments(std::span<CString> args)
 {
-    CString inFile;
-    CString outFile;
+    std::vector<std::filesystem::path> inFiles;
+    std::filesystem::path outFile;
     DWORD shaderFlags = 0;
     std::vector<D3DXMACRO> macros;
     for(size_t i = 0; i < args.size(); i++)
@@ -137,7 +140,7 @@ bool ProcessArguments(std::span<CString> args)
                 {
                     if(i + 1 < args.size())
                     {
-                        inFile = args[++i];
+                        inFiles.emplace_back(args[++i].Get());
                     }
                     else
                     {
@@ -148,13 +151,53 @@ bool ProcessArguments(std::span<CString> args)
 
                     if(i + 1 < args.size())
                     {
-                        outFile = args[++i];
+                        outFile = args[++i].Get();
                     }
                     else
                     { 
                         Log::Error("expected a file");
                         PrintHelp();
                         return false;
+                    }
+                }
+                else if(arg == "/OutBatch")
+                {
+                    std::filesystem::path inFolder;
+                    if(i + 1 < args.size())
+                    {
+                        inFolder = args[++i].Get();
+                    }
+                    else
+                    {
+                        Log::Error("expected a folder");
+                        PrintHelp();
+                        return false;
+                    }
+
+                    if(i + 1 < args.size())
+                    {
+                        outFile = args[++i].Get();
+                    }
+                    else
+                    {
+                        Log::Error("expected a folder");
+                        PrintHelp();
+                        return false;
+                    }
+
+                    if(!std::filesystem::is_directory(inFolder) || !std::filesystem::is_directory(outFile))
+                    {
+                        Log::Error("expected a folder");
+                        PrintHelp();
+                        return false;
+                    }
+
+                    for(const auto& file : std::filesystem::directory_iterator{inFolder})
+                    {
+                        if(file.path().extension() == ".fx")
+                        {
+                            inFiles.emplace_back(file.path());
+                        }
                     }
                 }
                 else if(arg == "/D")
@@ -225,7 +268,7 @@ bool ProcessArguments(std::span<CString> args)
         }
     }
 
-    if(!inFile.Get() || !outFile.Get())
+    if(inFiles.empty() || outFile.empty())
     {
         Log::Error("no files specified");
         PrintHelp();
@@ -234,8 +277,20 @@ bool ProcessArguments(std::span<CString> args)
 
     //last one has to be null
     macros.emplace_back(nullptr, nullptr);
+    
+    std::atomic_uint32_t fileIndex = 0;
+    std::vector<std::jthread> threads {std::thread::hardware_concurrency()};
+    for(auto& thread : threads)
+    {
+        thread = std::jthread([&]
+        {
+            while(fileIndex < inFiles.size())
+            {
+                ProcessEffect(inFiles[fileIndex++], outFile, shaderFlags, macros.data());
+            }
+        });
+    }
 
-    ProcessEffect(inFile.Get(), outFile.Get(), shaderFlags, macros.data());
     return false;
 }
 
