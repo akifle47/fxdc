@@ -21,14 +21,26 @@
     <ClCompile Include="src\FileStream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\rage\grcore\Effect.cpp">
+    <ClCompile Include="deps\hlslparser\src\Engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="deps\hlslparser\src\HLSLParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="deps\hlslparser\src\HLSLTokenizer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="deps\hlslparser\src\HLSLTree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Effect.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Log.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\rage\grcore\Effect.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\rage\math\Matrix.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -36,9 +48,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\rage\Array.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\rage\Base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\rage\StringHash.h">
@@ -87,6 +96,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\EffectWriter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="deps\hlslparser\src\Engine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="deps\hlslparser\src\HLSLParser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="deps\hlslparser\src\HLSLTokenizer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="deps\hlslparser\src\HLSLTree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Effect.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

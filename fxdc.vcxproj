@@ -151,6 +151,7 @@
     <ClCompile Include="deps\hlslparser\src\HLSLParser.cpp" />
     <ClCompile Include="deps\hlslparser\src\HLSLTokenizer.cpp" />
     <ClCompile Include="deps\hlslparser\src\HLSLTree.cpp" />
+    <ClCompile Include="src\Log.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Effect.cpp" />
     <ClCompile Include="src\FileStream.cpp" />

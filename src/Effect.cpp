@@ -337,8 +337,17 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
                 }
                 else if(errorBuffer)
                 {
+                    std::lock_guard guard {mutex};
+
                     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN);
-                    Log::Info("%s, %s", function.name, (char*)errorBuffer->GetBufferPointer());
+                    
+                    char warnMsg[256] {};
+                    strcpy(warnMsg, (char*)errorBuffer->GetBufferPointer());
+                    char* nl = strchr(warnMsg, '\n');
+                    if(nl)
+                        *nl = '\0';
+
+                    Log::Info("%s, %s", function.name, warnMsg);
                     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
                 }
 
