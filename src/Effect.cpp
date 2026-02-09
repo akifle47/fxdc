@@ -298,12 +298,15 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
 
     std::mutex mutex;
     auto it = shaderFunctions.begin();
+    uint16_t numThreads = (uint16_t)std::thread::hardware_concurrency();
     rage::atArray<ShaderInfo> compiledShaders;
-    rage::atArray<std::thread> compilationThreads {(uint16_t)std::thread::hardware_concurrency()};
+    rage::atArray<std::thread> compilationThreads {numThreads};
+    rage::atArray<bool> compilationError {numThreads};
     const char* source = parser.m_tokenizer.GetPreProcessedSource();
     for(uint16_t i = 0; i < compilationThreads.GetCapacity(); i++)
     {
-        compilationThreads.Append() = std::thread([&]
+        compilationError.Append() = false;
+        compilationThreads.Append() = std::thread([&, i]
         {
             while(true)
             {
@@ -311,7 +314,7 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
                 {
                     std::lock_guard guard{mutex};
                     if(it == shaderFunctions.end())
-                        return false;
+                        return;
                     shaderFunction = *it++;
                 }
 
@@ -333,7 +336,9 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
                         Log::Error((char*)errorBuffer->GetBufferPointer());
                     else
                         Log::Error("Failed to compile effect \"%s\"", function.name);
-                    return false;
+
+                    compilationError[i] = true;
+                    return;
                 }
                 else if(errorBuffer)
                 {
@@ -369,6 +374,12 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
     {
         if(thread.joinable())
             thread.join();
+    }
+
+    for(bool error : compilationError)
+    {
+        if(error)
+            return false;
     }
 
     for(const auto& shader : compiledShaders)
