@@ -236,7 +236,7 @@ bool Effect::LoadFromFx(const HLSLParser& parser, DWORD shaderFlags, const D3DXM
     ID3DXBuffer* shaderBuffer = nullptr;
     ID3DXBuffer* errorBuffer = nullptr;
     //validate the shader with fxc first as it can give better error messages
-    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), macros, nullptr, "", "fx_2_0", shaderFlags, &shaderBuffer, &errorBuffer, nullptr)))
+    if(FAILED(D3DXCompileShaderFromFileA(parser.m_tokenizer.GetFileName(), macros, nullptr, "", "fx_2_0", shaderFlags | D3DXSHADER_SKIPOPTIMIZATION, &shaderBuffer, &errorBuffer, nullptr)))
     {
         if(errorBuffer && errorBuffer->GetBufferSize())
             Log::Error((char*)errorBuffer->GetBufferPointer());
